@@ -1,0 +1,23 @@
+-- migrate-session2c.sql — PLACEHOLDER (Phase 2d fills this in)
+--
+-- Phase 2c shipped an EMPTY site. No data migration runs here.
+--
+-- Phase 2d (NOT STARTED, gated on human approval) will move physicians OUT of ther_listings
+-- INTO physician_listings, then refresh the MVs. Sketch (DO NOT RUN until approved):
+--
+--   -- A) Source-known physicians: CA Medical Board (verified 16/20, 0 contradictions).
+--   INSERT INTO physician_listings (<explicit non-generated columns…>)
+--   SELECT <same columns…> FROM ther_listings
+--   WHERE source = 'ca_dca_medicalboard_2026_05_19';
+--
+--   -- B) NPI-derived physicians inside NPPES (Phase 2a derived_taxonomy).
+--   INSERT INTO physician_listings (<explicit non-generated columns…>)
+--   SELECT <same columns…> FROM ther_listings
+--   WHERE derived_taxonomy LIKE '207%' OR derived_taxonomy LIKE '208%' OR derived_taxonomy LIKE '213%';
+--
+--   -- NEVER insert generated columns: business_name, province, tier_priority, name_sortkey.
+--   -- De-dup on npi/slug before insert. Then remove moved rows from ther_listings
+--   --   (or set is_published=false) per the approved Phase 2d plan — NO destructive deletes
+--   --   without sign-off. Finally:
+--   --   REFRESH MATERIALIZED VIEW CONCURRENTLY mv_physician_listings_regions;
+--   --   REFRESH MATERIALIZED VIEW mv_physician_listings_cities;

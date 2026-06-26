@@ -1,115 +1,73 @@
 const verticalConfig = {
   inquiryNoEmailPolicy: "hide", // TDL #455 (empire default)
   // === BRANDING ===
-  name: "DoINeedATherapist.org",
-  shortName: "DoINeedATherapist",
-  tagline: "Find a trusted therapist near you",
-  description: "A trusted therapist directory. AI-powered mental health triage, verified therapist listings, and a safe space to start your journey.",
-  entity: "Therapist",
-  entityPlural: "Therapists",
-  slug: "doineedatherapist",
-  domain: "www.doineedatherapist.org",
-  displayDomain: "doineedatherapist.org",
-  supportEmail: "hello@doineedatherapist.org",
+  name: "DoINeedAPhysician.com",
+  shortName: "DoINeedAPhysician",
+  tagline: "Find a physician near you",
+  description: "A public directory of licensed physicians compiled from state medical board records and NPPES. Search by specialty and location. Not a medical referral service — see our disclaimer.",
+  entity: "Physician",
+  entityPlural: "Physicians",
+  slug: "doineedaphysician",
+  domain: "www.doineedaphysician.com",
+  displayDomain: "doineedaphysician.com",
+  supportEmail: "hello@doineedaphysician.com",
   primaryColor: "#6B8F71",
   ctaColor: "#E17055",
   instagramHandle: "",
 
   // === ENTITY NOUNS ===
-  listingNoun: "therapist",
-  listingNounPlural: "therapists",
+  listingNoun: "physician",
+  listingNounPlural: "physicians",
 
   // === COLORS ===
   heroGradientFrom: "#6B8F71",
   heroGradientVia: "#5A7D60",
   heroGradientTo: "#4A6B50",
   creamBg: "#FFF8F0",
-  defaultCountry: "CA",
+  defaultCountry: "US",
 
   // === COUNTRY SUPPORT (TDL #271) ===
-  supportedCountries: ["CA", "US"] as const,
+  supportedCountries: ["US", "CA"] as const,
 
   // === DATABASE ===
-  tablePrefix: "ther_",
+  tablePrefix: "physician_",
 
   // === BILLING ===
   siteforgeEnabled: true,
 
-  // === TRIAGE (3-question quiz instead of AI chat) ===
-  triageEnabled: true,
+  // === TRIAGE ===
+  // Disabled for the physician vertical: a symptom/diagnosis quiz would constitute
+  // medical advice (see app/disclaimer/page.tsx — "Not Medical Advice"). Directory only.
+  triageEnabled: false,
   triageType: "quiz",
-  triageQuestions: [
-    {
-      id: "q1",
-      question: "How have you been feeling emotionally in the last 2 weeks?",
-      options: [
-        { label: "Good — mostly fine", score: 1 },
-        { label: "Up and down — some tough days", score: 2 },
-        { label: "Struggling — more bad days than good", score: 3 },
-        { label: "In crisis — I need help now", score: 4, crisis: true },
-      ],
-    },
-    {
-      id: "q2",
-      question: "Is stress affecting your sleep, appetite, or daily routine?",
-      options: [
-        { label: "Not really", score: 1 },
-        { label: "Sometimes", score: 2 },
-        { label: "Most days", score: 3 },
-        { label: "Every day", score: 4 },
-      ],
-    },
-    {
-      id: "q3",
-      question: "What kind of support interests you most?",
-      options: [
-        { label: "Just someone to talk to", score: 0, type: "psychotherapist" },
-        { label: "Help with anxiety or stress", score: 0, type: "psychotherapist" },
-        { label: "Help with depression or grief", score: 0, type: "psychologist" },
-        { label: "Couples or family counselling", score: 0, type: "counsellor" },
-        { label: "I'm not sure yet", score: 0, type: "psychotherapist" },
-      ],
-    },
-  ],
+  triageQuestions: [],
   triageResults: {
-    low: {
-      heading: "It sounds like you're doing okay",
-      body: "Checking in with yourself is always a healthy thing to do. If things change or you just want someone to talk to, therapists are here for you — no crisis required.",
-      ctaStyle: "secondary",
-    },
-    moderate: {
-      heading: "Talking to someone could really help",
-      body: "Based on what you shared, connecting with a professional could make a real difference. Therapy isn't just for crisis — it's for anyone who wants support navigating life.",
-      ctaStyle: "primary",
-    },
-    high: {
-      heading: "You deserve support right now",
-      body: "It sounds like you're going through a really tough time, and that takes courage to acknowledge. You don't have to go through this alone.",
-      ctaStyle: "primary",
-    },
+    low: { heading: "", body: "", ctaStyle: "secondary" },
+    moderate: { heading: "", body: "", ctaStyle: "primary" },
+    high: { heading: "", body: "", ctaStyle: "primary" },
   },
   crisisResources: {
     enabled: true,
     resources: [
-      { label: "If you're in immediate danger, call 911", type: "emergency" },
-      { label: "Talk to someone now: call or text 988", type: "crisis", url: "tel:988" },
-      { label: "Crisis Text Line: text HOME to 686868", type: "crisis" },
+      { label: "Medical emergency? Call 911 or go to your nearest ER", type: "emergency" },
+      { label: "Poison Control: 1-800-222-1222", type: "crisis", url: "tel:18002221222" },
+      { label: "Mental health crisis: call or text 988", type: "crisis", url: "tel:988" },
     ],
   },
-  triageDisclaimer: "This is not a clinical assessment or diagnosis. It's a tool to help you think about whether professional support might be helpful. If you are in crisis, call or text 988.",
+  triageDisclaimer: "This directory provides listing information only and is not medical advice, diagnosis, or treatment. If you are experiencing a medical emergency, call 911.",
 
-  // === CATEGORIES ===
+  // === CATEGORIES (physician specialties) ===
   categoryLabels: [
-    { slug: "psychotherapist", label: "Psychotherapist", emoji: "🧠", description: "Talk therapy for anxiety, depression, trauma, and personal growth" },
-    { slug: "psychologist", label: "Psychologist", emoji: "🔬", description: "Clinical assessment, diagnosis, and evidence-based treatment" },
-    { slug: "counsellor", label: "Counsellor", emoji: "💬", description: "Guidance for relationships, career, grief, and life transitions" },
-    { slug: "social-worker", label: "Social Worker", emoji: "🤝", description: "Mental health support with a focus on community and social systems" },
-    { slug: "couples-therapist", label: "Couples Therapist", emoji: "💑", description: "Relationship counselling, communication, and conflict resolution" },
-    { slug: "family-therapist", label: "Family Therapist", emoji: "👨‍👩‍👧‍👦", description: "Family dynamics, parenting challenges, and family conflict" },
-    { slug: "child-therapist", label: "Child & Youth Therapist", emoji: "🧒", description: "Specialized therapy for children and adolescents" },
-    { slug: "addiction-counsellor", label: "Addiction Counsellor", emoji: "🔄", description: "Support for substance use, behavioral addictions, and recovery" },
-    { slug: "trauma-therapist", label: "Trauma Therapist", emoji: "🕊️", description: "PTSD, EMDR, and healing from traumatic experiences" },
-    { slug: "art-therapist", label: "Art & Creative Therapist", emoji: "🎨", description: "Expressive arts therapy using art, music, or drama" },
+    { slug: "family-medicine", label: "Family Medicine", emoji: "🩺", description: "Primary care for patients of all ages" },
+    { slug: "internal-medicine", label: "Internal Medicine", emoji: "🫀", description: "Adult primary and complex chronic care" },
+    { slug: "pediatrics", label: "Pediatrician", emoji: "🧒", description: "Medical care for infants, children, and adolescents" },
+    { slug: "psychiatry", label: "Psychiatrist", emoji: "🧠", description: "Medical diagnosis and treatment of mental health conditions" },
+    { slug: "obgyn", label: "OB/GYN", emoji: "🤰", description: "Obstetrics, gynecology, and women's health" },
+    { slug: "cardiology", label: "Cardiologist", emoji: "❤️", description: "Heart and cardiovascular conditions" },
+    { slug: "dermatology", label: "Dermatologist", emoji: "🧴", description: "Skin, hair, and nail conditions" },
+    { slug: "orthopedics", label: "Orthopedic Surgeon", emoji: "🦴", description: "Bones, joints, and musculoskeletal care" },
+    { slug: "general-surgery", label: "Surgeon", emoji: "🏥", description: "Surgical evaluation and procedures" },
+    { slug: "neurology", label: "Neurologist", emoji: "⚡", description: "Brain, spine, and nervous system conditions" },
   ],
 
   // === NATIONAL REGIONS ===
@@ -268,36 +226,36 @@ const verticalConfig = {
   cluster: "B",
   crossReferrals: [
     { name: 'Not Sure Which Pro?', url: 'https://doineedapro.com', description: 'Free AI triage — tell us your problem, we\'ll tell you which type of pro to call' },
+    { name: "Find a Therapist", url: "https://doineedatherapist.org", pathPattern: "/{city}" },
     { name: "Find a Physiotherapist", url: "https://doineedaphysiotherapist.com", pathPattern: "/{city}" },
-    { name: "Find a Massage Therapist", url: "https://doineedamassagetherapist.com", pathPattern: "/{city}" },
     { name: "Find a Naturopath", url: "https://doineedanaturopath.com", pathPattern: "/{city}" },
   ],
 
   // === FAQs ===
   faqs: [
     {
-      question: "How do I know if I need a therapist?",
-      answer: "If stress, anxiety, sadness, or relationship difficulties are affecting your daily life, talking to a therapist can help. You don't need to be in crisis — therapy is for anyone who wants support navigating life's challenges."
+      question: "Is this a medical referral service?",
+      answer: "No. DoINeedAPhysician.com is a public directory compiled from state medical board records and NPPES. Inclusion is not an endorsement or referral, and we do not vet or rank practitioners. Always verify a physician's current license and credentials directly with the relevant state medical board."
     },
     {
-      question: "What's the difference between a psychologist, psychotherapist, and counsellor?",
-      answer: "Psychologists have doctoral-level training and can do clinical assessments. Psychotherapists (Registered Psychotherapists in Ontario) provide talk therapy. Counsellors offer guidance on specific life issues. All can help — the best fit depends on your needs."
+      question: "Where does the listing information come from?",
+      answer: "Listings are sourced from public, government-maintained records: the Medical Board of California / California Department of Consumer Affairs and the National Plan and Provider Enumeration System (NPPES) from the Centers for Medicare & Medicaid Services. No patient information is collected or displayed."
     },
     {
-      question: "Is therapy covered by provincial health insurance?",
-      answer: "Psychologists and psychiatrists may be partially covered. Most psychotherapy and counselling requires private insurance or out-of-pocket payment. Many employers offer Employee Assistance Programs (EAP) with free sessions."
+      question: "Do the specialties shown mean a physician is board certified?",
+      answer: "Not necessarily. Specialty designations reflect taxonomy codes in licensee records and do not represent board certification unless explicitly stated. Verify board certification with the American Board of Medical Specialties (abms.org) or the relevant specialty board."
     },
     {
-      question: "How much does therapy cost?",
-      answer: "Sessions typically range from $120-$250/hour depending on the provider and province. Many therapists offer sliding scale fees. Check if your insurance covers mental health services."
+      question: "How current is the license and contact information?",
+      answer: "Records may be incomplete or outdated. License status, location, and contact details can change after our last data refresh. Always confirm current details with the physician's office and the state medical board before relying on them."
     },
     {
-      question: "How do I claim my listing on DoINeedATherapist.org?",
-      answer: "Click 'Claim Your Listing' on your listing page, enter your professional email, and verify ownership. Once claimed, you can edit your information, add photos, and upgrade for enhanced features."
+      question: "I'm a physician — how do I claim, correct, or remove my listing?",
+      answer: "Click 'Claim Your Listing' on your listing page and verify ownership with your professional email, or contact us via the contact page. Claiming and corrections are free, and we respond to verified removal requests within 7 business days."
     },
     {
-      question: "What does it cost to be listed?",
-      answer: "Claiming your listing is free forever. Reviews Plus ($9/mo) adds a Featured badge, your Google reviews, and top placement. Website ($49/mo) includes a full website on your own domain. See our pricing page for full details."
+      question: "What should I do in a medical emergency?",
+      answer: "Do not use this directory in an emergency. If you are experiencing a medical emergency, call 911 immediately or go to your nearest emergency room."
     },
   ],
 
@@ -305,71 +263,17 @@ const verticalConfig = {
   design: {
     primaryColor: '#6B8F71',
     accentColor: '#3B82F6',
-    personalityWord: 'calm',
-    personalityIcon: 'MessageSquare',
+    personalityWord: 'trusted',
+    personalityIcon: 'Stethoscope',
     heroPattern: 'dots' as const,
     loadingMessages: [
-      'Holding space...',
-      'Taking a breath...',
-      'Setting the tone...',
-      'Creating a safe space...',
-      'Listening carefully...',
+      'Checking the directory...',
+      'Looking up physicians...',
+      'Gathering listings...',
+      'Almost there...',
+      'Loading results...',
     ],
-    notFoundMessage: 'That page needs time to heal.',
-    NT: "Northwest Territories",
-    NU: "Nunavut",
-    YT: "Yukon",
-    AL: "Alabama",
-    AK: "Alaska",
-    AZ: "Arizona",
-    AR: "Arkansas",
-    CA: "California",
-    CO: "Colorado",
-    CT: "Connecticut",
-    DE: "Delaware",
-    FL: "Florida",
-    GA: "Georgia",
-    HI: "Hawaii",
-    ID: "Idaho",
-    IL: "Illinois",
-    IN: "Indiana",
-    IA: "Iowa",
-    KS: "Kansas",
-    KY: "Kentucky",
-    LA: "Louisiana",
-    ME: "Maine",
-    MD: "Maryland",
-    MA: "Massachusetts",
-    MI: "Michigan",
-    MN: "Minnesota",
-    MS: "Mississippi",
-    MO: "Missouri",
-    MT: "Montana",
-    NE: "Nebraska",
-    NV: "Nevada",
-    NH: "New Hampshire",
-    NJ: "New Jersey",
-    NM: "New Mexico",
-    NY: "New York",
-    NC: "North Carolina",
-    ND: "North Dakota",
-    OH: "Ohio",
-    OK: "Oklahoma",
-    OR: "Oregon",
-    PA: "Pennsylvania",
-    RI: "Rhode Island",
-    SC: "South Carolina",
-    SD: "South Dakota",
-    TN: "Tennessee",
-    TX: "Texas",
-    UT: "Utah",
-    VT: "Vermont",
-    VA: "Virginia",
-    WA: "Washington",
-    WV: "West Virginia",
-    WI: "Wisconsin",
-    WY: "Wyoming",
-    DC: "District of Columbia",
+    notFoundMessage: 'That page could not be found.',
   },
 };
 

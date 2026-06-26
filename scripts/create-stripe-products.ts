@@ -12,9 +12,9 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 });
 
 const tiers = [
-  { name: "Pro", price: 2900, description: "Claimed & verified therapist listing" },
-  { name: "Premium", price: 4900, description: "Featured therapist listing with Instagram promotion" },
-  { name: "Growth", price: 9700, description: "Top placement therapist listing with promotion package" },
+  { name: "Pro", price: 2900, description: "Claimed & verified physician listing" },
+  { name: "Premium", price: 4900, description: "Featured physician listing with Instagram promotion" },
+  { name: "Growth", price: 9700, description: "Top placement physician listing with promotion package" },
 ];
 
 async function main() {

@@ -63,7 +63,7 @@ export async function GET(
     // City pages (/{PROV}/{city}) — CA only. F-α.3 sweep.
     // Inline distinct query: ~50-150 pairs per repo, well below chunk capacity.
     const { data: cityRows } = await supabaseAdmin
-      .from("ther_listings")
+      .from("physician_listings")
       .select("province_state, region_slug")
       .eq("country", "CA")
       .not("province_state", "is", null)

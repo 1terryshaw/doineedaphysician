@@ -28,8 +28,8 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   const canonical = page > 1 ? `/${region}?page=${page}` : `/${region}`;
   const pageSuffix = page > 1 ? ` (Page ${page})` : "";
   return {
-    title: `Therapists in ${regionData.label}${pageSuffix}`,
-    description: `Find trusted therapists in ${regionData.label}, ${regionData.province}. Browse verified listings on ${verticalConfig.name}.`,
+    title: `Physicians in ${regionData.label}${pageSuffix}`,
+    description: `Find trusted physicians in ${regionData.label}, ${regionData.province}. Browse verified listings on ${verticalConfig.name}.`,
     alternates: { canonical },
   };
 }
@@ -55,13 +55,13 @@ export default async function RegionPage({ params, searchParams }: Props) {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(regionBreadcrumbSchema(region, regionData.label)) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(regionCollectionPageSchema(region, regionData.label, total)) }} />
       <h1 className="text-3xl font-bold mb-2 text-gray-900">
-        Therapists in {regionData.label}
+        Physicians in {regionData.label}
       </h1>
       <div className="mb-4">
         <ShareButtons variant="compact" title={`${verticalConfig.name} — Directory`} />
       </div>
       <p className="text-gray-600 mb-8">
-        Browse {total.toLocaleString("en-US")} {total === 1 ? "therapist" : "therapists"} in{" "}
+        Browse {total.toLocaleString("en-US")} {total === 1 ? "physician" : "physicians"} in{" "}
         {regionData.label},{" "}
         {verticalConfig.provinceLabels[regionData.province] || regionData.province}
         {totalPages > 1 ? ` — page ${page} of ${totalPages.toLocaleString("en-US")}` : ""}.
@@ -69,7 +69,7 @@ export default async function RegionPage({ params, searchParams }: Props) {
 
       {listings.length === 0 ? (
         <p className="text-gray-500 text-center py-12">
-          No therapists in {regionData.label} yet. Check back soon!
+          No physicians in {regionData.label} yet. Check back soon!
         </p>
       ) : (
         <>

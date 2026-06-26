@@ -1,17 +1,25 @@
-# Cost Estimator — Progress (therapist)
+# DoINeedAPhysician.com — PROGRESS
 
-Vertical-agnostic Cost Estimator module (v2, sweep standard) dropped in from the
-dentist canary. Identity resolves from empire_verticals by listings_table.
+## Phase 2c — EMPTY SITE SPIN-UP  ✅ (2026-06-26)
+Empty physician directory shipped from the doineedatherapist.org template.
+**Public indexing GATED on disclaimer/TOS sign-off + human review of the live empty site.**
 
-## 2026-06-16 — sweep Batch 1, vertical 1 (therapist)
-**Shipped:** `/costs` estimator, markets us + ca (USD/CAD). Session TYPES (not modalities).
-- `sql/migrate-costcalc-therapist.sql` (idempotent; ADDS 10 rows to shared cost_models,
-  vertical='therapist'; other verticals + global region_modifiers untouched).
-  Services: individual / couples / family / group session + intake assessment.
-- v2 module (built-in canonical region catalog, NOT verticalConfig.provinceLabels;
-  CTA → /directory?region=<CODE>; a/an FAQ): lib/cost-models.ts, app/api/cost-estimate,
-  app/costs/page.tsx, components/CostEstimator.tsx; app/api/health route adds cost_models check.
-- **Verified LOCAL:** tsc clean; /api/health healthy, cost_models ok, count 10;
-  US individual/PhD/NY = US$180–455 (per session); CA couples/In-person/ON = CA$125–275;
-  /costs H1 + a/an FAQ ("an individual therapy session…") + US/Canada optgroups + Other last.
-- **Verified PROD:** see commit/report (currency field present in prod payload).
+- DB (single empire project): `empire_verticals` row `physicians`; `physician_listings`
+  (LIKE ther_listings INCLUDING ALL, RLS, 0 rows); `physician_inquiries`; MVs
+  `mv_physician_listings_regions` + `_cities`. See `sql/setup-fresh.sql`.
+- Rebrand: `lib/vertical.config.ts` → physician (specialties, FAQs, US default, tablePrefix
+  physician_). Triage quiz REMOVED (`triageEnabled:false`). Learn page → physician specialties.
+- Disclaimers (NON-NEGOTIABLE): `app/disclaimer/page.tsx` (full verbatim, 911 line), emergency
+  banner on every page, listing-detail license notice, footer link, JSON-LD Physician type.
+- Favicon: `public/favicon.svg` (medical cross, green).
+- Build: `npm run build` exit 0. Local smoke (PORT=3100): title DoINeedAPhysician.com, H1 "Find a
+  Physician Near You", emergency banner present, /disclaimer 911 line present, /api/health 200
+  listingCount 0 (status "degraded" only because cost_models intentionally empty).
+
+## Phase 2d — DATA MIGRATION  ⛔ NOT STARTED (gated)
+- Move ~179K physicians from ther_listings → physician_listings:
+  `source='ca_dca_medicalboard_2026_05_19'` (176,973) + NPPES `derived_taxonomy` 207/208/2084P
+  (~2,263). INSERT…SELECT (never insert generated cols), de-dup on npi/slug, then REFRESH MVs.
+- /costs cost_models seed for physicians: deferred (scaffold §8A human approval).
+- Gate: human reviews the LIVE empty site + /disclaimer + emergency banner, signs off on
+  disclaimer/TOS, THEN approves the data move.

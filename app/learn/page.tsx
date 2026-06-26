@@ -3,61 +3,61 @@ import Link from "next/link";
 import verticalConfig from "@/lib/vertical.config";
 
 export const metadata: Metadata = {
-  title: "Types of Therapy",
+  title: "Physician Specialties",
   description:
-    "Learn about different types of therapy — from talk therapy and CBT to couples counselling and EMDR.",
+    "A quick guide to common physician specialties — from family medicine and internal medicine to cardiology, pediatrics, and surgery.",
 };
 
-const therapyTypes = [
+const specialties = [
   {
-    title: "Talk Therapy / Psychotherapy",
-    emoji: "💬",
+    title: "Family Medicine",
+    emoji: "🩺",
     description:
-      "The most common form of therapy — you and a therapist have regular conversations about what's going on in your life. It's a safe, private space to work through feelings, patterns, and challenges at your own pace. No couch required.",
+      "Family physicians provide primary care for patients of all ages — checkups, preventive care, common illnesses, and management of ongoing conditions. Often the first point of contact and a long-term partner in your health.",
   },
   {
-    title: "Cognitive Behavioral Therapy (CBT)",
+    title: "Internal Medicine",
+    emoji: "🫀",
+    description:
+      "Internists focus on adult medicine, including the prevention, diagnosis, and treatment of complex and chronic conditions. Many adults see an internist as their primary care physician.",
+  },
+  {
+    title: "Pediatrics",
+    emoji: "🧒",
+    description:
+      "Pediatricians care for infants, children, and adolescents — covering growth and development, immunizations, and childhood illnesses.",
+  },
+  {
+    title: "Psychiatry",
     emoji: "🧠",
     description:
-      "CBT helps you notice unhelpful thought patterns and replace them with healthier ones. It's practical, structured, and backed by decades of research — especially effective for anxiety, depression, and stress.",
+      "Psychiatrists are medical doctors who diagnose and treat mental health conditions, including the ability to prescribe medication. (For talk therapy and counselling, see our therapist directory.)",
   },
   {
-    title: "Couples Counselling",
-    emoji: "💑",
+    title: "Cardiology",
+    emoji: "❤️",
     description:
-      "Whether you're navigating conflict, communication breakdowns, or just feeling disconnected, couples counselling gives you tools to understand each other better and strengthen your relationship.",
+      "Cardiologists specialize in the heart and cardiovascular system — diagnosing and treating conditions such as heart disease, arrhythmias, and high blood pressure.",
   },
   {
-    title: "Family Therapy",
-    emoji: "👨‍👩‍👧‍👦",
+    title: "Surgery",
+    emoji: "🏥",
     description:
-      "Family therapy brings family members together to work through conflicts, improve communication, and build healthier dynamics. It's especially helpful during major transitions or when one person's struggles affect the whole family.",
-  },
-  {
-    title: "EMDR / Trauma Therapy",
-    emoji: "🕊️",
-    description:
-      "EMDR (Eye Movement Desensitization and Reprocessing) helps your brain process traumatic memories so they lose their emotional charge. It's a well-researched approach for PTSD, anxiety, and unresolved trauma.",
-  },
-  {
-    title: "Art & Creative Therapy",
-    emoji: "🎨",
-    description:
-      "Creative therapies use art, music, drama, or movement as tools for expression and healing. You don't need to be artistic — it's about the process, not the product. Great for people who find it hard to put feelings into words.",
+      "Surgeons evaluate and, when appropriate, perform operative procedures. Specialties range from general surgery to orthopedics, neurosurgery, and many others.",
   },
 ];
 
 export default function LearnPage() {
   return (
     <div className="max-w-4xl mx-auto px-4 py-16">
-      <h1 className="text-3xl font-bold mb-3 text-gray-900">Types of Therapy</h1>
+      <h1 className="text-3xl font-bold mb-3 text-gray-900">Physician Specialties</h1>
       <p className="text-gray-600 mb-12 text-lg">
-        Not sure what kind of therapy is right for you? Here&apos;s a quick, friendly guide to the
-        most common approaches.
+        Not sure which kind of physician to look for? Here&apos;s a quick guide to some common
+        specialties. This is general information only — not medical advice.
       </p>
 
       <div className="space-y-8">
-        {therapyTypes.map((type) => (
+        {specialties.map((type) => (
           <div
             key={type.title}
             className="bg-white border rounded-xl p-6 hover:shadow-sm transition-shadow"
@@ -76,14 +76,14 @@ export default function LearnPage() {
       {/* CTA */}
       <div className="mt-16 text-center">
         <h2 className="text-2xl font-bold text-gray-900 mb-4">
-          Ready to find a therapist near you?
+          Ready to find a physician near you?
         </h2>
         <Link
           href="/directory"
           className="inline-block px-8 py-3 rounded-lg font-semibold text-white transition-colors"
           style={{ backgroundColor: verticalConfig.ctaColor }}
         >
-          Browse Therapists &rarr;
+          Browse Physicians &rarr;
         </Link>
       </div>
 

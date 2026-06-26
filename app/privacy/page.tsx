@@ -42,11 +42,11 @@ export default function PrivacyPage() {
         </section>
 
         <section>
-          <h2 className="text-lg font-semibold text-gray-900 mb-2">3. Mental Health Check-In Tool</h2>
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">3. No Patient or Health Information</h2>
           <p>
-            The check-in tool is not a clinical assessment. <strong>No answers are stored.</strong>{" "}
-            Your responses are processed entirely in your browser and are never sent to our servers
-            or saved in any database. We do not track or analyze check-in results.
+            This is a directory of publicly listed physicians. <strong>We do not collect, store, or
+            display any patient information or protected health information (PHI).</strong> Listings
+            are compiled from public government records (state medical boards and NPPES).
           </p>
         </section>
 

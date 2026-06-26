@@ -26,19 +26,22 @@ export default function TermsPage() {
         <section>
           <h2 className="text-lg font-semibold text-gray-900 mb-2">2. Description of Service</h2>
           <p>
-            {verticalConfig.name} is a DoINeedATherapist.org therapist directory and mental health
-            check-in tool that connects users with therapists near you. We offer free and paid
-            listing tiers for therapist practices.
+            {verticalConfig.name} is a public directory of licensed physicians compiled from state
+            medical board records and the National Plan and Provider Enumeration System (NPPES). It
+            is not a medical referral service and does not provide medical advice. We offer free and
+            paid listing tiers for physician practices.
           </p>
         </section>
 
         <section>
-          <h2 className="text-lg font-semibold text-gray-900 mb-2">3. Mental Health Check-In Tool</h2>
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">3. Not Medical Advice</h2>
           <p>
-            The check-in tool is not a clinical assessment. No answers are stored. It is designed to
-            help you think about whether professional support might be helpful. It does not provide
-            diagnoses, treatment recommendations, or medical advice. If you are in crisis, call or
-            text 988.
+            The Service provides directory information only. Nothing on this site constitutes medical
+            advice, diagnosis, or treatment, and inclusion of a physician is not an endorsement or
+            referral. Always consult a qualified healthcare provider, and verify any physician&apos;s
+            current license directly with the relevant state medical board. If you are experiencing a
+            medical emergency, call 911. See our{" "}
+            <a href="/disclaimer" className="underline">full disclaimer</a>.
           </p>
         </section>
 
@@ -86,7 +89,7 @@ export default function TermsPage() {
             The Service is provided &ldquo;as is&rdquo; without warranties of any kind. Smart
             Website Management shall not be liable for any indirect, incidental, or consequential
             damages arising from your use of the Service. We do not guarantee the qualifications,
-            competence, or suitability of any listed therapist.
+            competence, or suitability of any listed physician.
           </p>
         </section>
 

@@ -85,7 +85,7 @@ export default async function ListingPage({ params }: Props) {
 
   const jsonLd = {
     "@context": "https://schema.org",
-    "@type": "ProfessionalService",
+    "@type": ["Physician", "MedicalBusiness"],
     name: listing.name,
     description: listing.short_description || listing.description,
     telephone: listing.phone,
@@ -207,6 +207,14 @@ export default async function ListingPage({ params }: Props) {
 
             <div className="prose max-w-none">
               <p className="text-gray-700 leading-relaxed">{listing.description}</p>
+            </div>
+
+            {/* Medical-vertical NON-NEGOTIABLE: license-verification notice */}
+            <div className="mt-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              This listing is compiled from public records and is not a referral or endorsement.
+              Verify this physician&apos;s current license directly with the relevant state medical
+              board. Not medical advice — see our{" "}
+              <a href="/disclaimer" className="underline font-medium">disclaimer</a>.
             </div>
 
             {/* Customer reviews — full carousel for tiers with reviews_display */}

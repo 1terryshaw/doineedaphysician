@@ -112,7 +112,7 @@ export default function SearchBar({
     }
     const params = new URLSearchParams();
     if (q) params.set("q", q);
-    if (type) params.set("listing_type", type); // TDL #661 — therapist uses listing_type param
+    if (type) params.set("listing_type", type); // TDL #661 — physician uses listing_type param
     if (province) params.set("region", province);
     if (province && city) params.set("city", city);
     const qs = params.toString();

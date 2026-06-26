@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import verticalConfig from "@/lib/vertical.config";
-import TriageQuizWidget from "@/components/TriageQuizWidget";
 import PersonalityBadge from "@/components/pizzazz/PersonalityBadge";
 import ShareButtons from "@/components/pizzazz/ShareButtons";
 import FadeIn from "@/components/pizzazz/FadeIn";
@@ -43,24 +42,24 @@ export default async function HomePage() {
         </div>
         <div className="max-w-3xl mx-auto text-center text-white relative">
           <h1 className="text-3xl md:text-5xl font-bold mb-3 animate-fade-up">
-            Not sure if you should talk to someone?
+            Find a Physician Near You
           </h1>
           <p className="text-lg md:text-xl opacity-90 mb-6 animate-fade-up" style={{ animationDelay: "0.1s" }}>
-            Take this free, private 2-minute check-in — no signup required
+            Search a public directory of licensed physicians by specialty and location
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <a
-              href="#quiz"
+            <Link
+              href="/directory"
               className="px-8 py-3 rounded-lg font-semibold text-white transition-colors text-center"
               style={{ backgroundColor: verticalConfig.ctaColor }}
             >
-              Start Check-In &rarr;
-            </a>
+              Find a Physician &rarr;
+            </Link>
             <Link
               href="/directory"
               className="px-8 py-3 border-2 border-white rounded-lg font-semibold text-white hover:bg-white/10 transition-colors text-center"
             >
-              Browse Therapists
+              Browse Physicians
             </Link>
           </div>
           {/* Trust badges */}
@@ -86,20 +85,11 @@ export default async function HomePage() {
         <ShareButtons variant="compact" title={`${verticalConfig.name} — ${verticalConfig.tagline}`} />
       </div>
 
-      {/* Triage Quiz Widget */}
-      <section
-        id="quiz"
-        className="px-4 pt-2 pb-16"
-        style={{ backgroundColor: verticalConfig.creamBg }}
-      >
-        <TriageQuizWidget />
-      </section>
-
-      {/* Types of Therapists */}
+      {/* Types of Physicians */}
       <section className="py-16 px-4">
         <div className="max-w-7xl mx-auto">
           <h2 className="text-2xl font-bold mb-8 text-center text-gray-900">
-            Types of Therapists
+            Types of Physicians
           </h2>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
             {verticalConfig.categoryLabels.map((cat) => (

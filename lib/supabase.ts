@@ -416,7 +416,7 @@ export async function getAllListingsForSitemap(regionSlug?: string): Promise<Lis
 
 // Sitemap row shape — only the fields the chunk renderer needs.
 // Narrow type avoids fetching 80-col `select("*")` payloads (~2KB/row → 88MB/chunk),
-// which on 1M+ row tables (e.g. ther_listings) hit Vercel response-size limits.
+// which on 1M+ row tables (e.g. physician_listings) hit Vercel response-size limits.
 export type SitemapListing = { slug: string; updated_at?: string; created_at: string };
 
 // Bounded range fetch for sitemap chunks. Loops .range() in PAGE_SIZE pages
