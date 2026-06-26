@@ -1,0 +1,94 @@
+// ⚠️ DISABLED 2026-04-20 — Uses Legacy Google Places API which caused $2,263 overage.
+// Rewrite to Places API New (X-Goog-FieldMask, Basic tier) before re-enabling.
+// See: ~/empire/empire-seeding/scripts/seed-config.ts for the correct pattern.
+// To restore: remove this header and rename .legacy-disabled → .ts
+
+/**
+ * Seeds therapist listings from Google Places API.
+ * Run: npx ts-node scripts/seed-from-google.ts
+ *
+ * Requires NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, and GOOGLE_PLACES_API_KEY in .env.local
+ */
+
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+const TABLE = "ther_listings";
+
+const SEARCH_QUERIES = [
+  { query: "therapist Toronto Ontario", type: "therapist", region: "toronto" },
+  { query: "psychotherapist Ottawa Ontario", type: "psychotherapist", region: "ottawa" },
+  { query: "therapist Mississauga Ontario", type: "therapist", region: "mississauga" },
+  { query: "therapist Hamilton Ontario", type: "therapist", region: "hamilton" },
+  { query: "therapist London Ontario", type: "therapist", region: "london" },
+  { query: "therapist Kitchener Waterloo Ontario", type: "therapist", region: "kitchener-waterloo" },
+  { query: "therapist Barrie Ontario", type: "therapist", region: "barrie" },
+  { query: "therapist Kingston Ontario", type: "therapist", region: "kingston" },
+  { query: "therapist Niagara Ontario", type: "therapist", region: "niagara" },
+  { query: "therapist Muskoka Ontario", type: "therapist", region: "muskoka" },
+  { query: "therapist Windsor Ontario", type: "therapist", region: "windsor" },
+  { query: "therapist Sudbury Ontario", type: "therapist", region: "sudbury" },
+  { query: "therapist Thunder Bay Ontario", type: "therapist", region: "thunder-bay" },
+  { query: "therapist Peterborough Ontario", type: "therapist", region: "peterborough" },
+  { query: "therapist Guelph Ontario", type: "therapist", region: "guelph" },
+];
+
+function slugify(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+async function searchPlaces(query: string) {
+  const apiKey = process.env.GOOGLE_PLACES_API_KEY!;
+  const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${apiKey}`;
+  const res = await fetch(url);
+  const data = await res.json();
+  return data.results || [];
+}
+
+async function main() {
+  console.log("Seeding therapist listings from Google Places...\n");
+
+  for (const sq of SEARCH_QUERIES) {
+    console.log(`Searching: ${sq.query}`);
+    const places = await searchPlaces(sq.query);
+
+    for (const place of places) {
+      const listing = {
+        slug: slugify(place.name),
+        name: place.name,
+        description: place.formatted_address || "",
+        short_description: place.formatted_address || "",
+        city: place.formatted_address?.split(",")[0]?.trim() || "",
+        province_state: "ON",
+        country: "CA",
+        region: sq.region,
+        type: sq.type,
+        google_rating: place.rating || null,
+        google_review_count: place.user_ratings_total || null,
+        claimed: false,
+        featured: false,
+      };
+
+      const { error } = await supabase
+        .from(TABLE)
+        .upsert(listing, { onConflict: "slug" });
+
+      if (error) {
+        console.error(`  Error inserting ${place.name}:`, error.message);
+      } else {
+        console.log(`  Inserted: ${place.name}`);
+      }
+    }
+  }
+
+  console.log("\nDone!");
+}
+
+main().catch(console.error);

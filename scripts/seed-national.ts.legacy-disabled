@@ -1,0 +1,434 @@
+// ⚠️ DISABLED 2026-04-20 — Uses Legacy Google Places API which caused $2,263 overage.
+// Rewrite to Places API New (X-Goog-FieldMask, Basic tier) before re-enabling.
+// See: ~/empire/empire-seeding/scripts/seed-config.ts for the correct pattern.
+// To restore: remove this header and rename .legacy-disabled → .ts
+
+/**
+ * National Therapist Seeding Script
+ * Seeds ther_listings from Google Places API (Legacy) for all Canadian cities.
+ *
+ * Run: npx tsx scripts/seed-national.ts
+ *
+ * Requires in .env.local:
+ *   NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, GOOGLE_PLACES_API_KEY
+ */
+
+import * as dotenv from "dotenv";
+dotenv.config({ path: ".env.local" });
+
+import { createClient } from "@supabase/supabase-js";
+
+// ---------------------------------------------------------------------------
+// Config (inlined from vertical.config.ts to avoid Next.js path aliases)
+// ---------------------------------------------------------------------------
+
+const TABLE = "ther_listings";
+
+const PROVINCE_LABELS: Record<string, string> = {
+  ON: "Ontario",
+  BC: "British Columbia",
+  AB: "Alberta",
+  QC: "Quebec",
+  MB: "Manitoba",
+  SK: "Saskatchewan",
+  NS: "Nova Scotia",
+  NB: "New Brunswick",
+  NL: "Newfoundland & Labrador",
+  PE: "Prince Edward Island",
+};
+
+interface Region {
+  slug: string;
+  label: string;
+  province: string;
+}
+
+const REGIONS: Region[] = [
+  // Ontario
+  { slug: "toronto", label: "Toronto", province: "ON" },
+  { slug: "ottawa", label: "Ottawa", province: "ON" },
+  { slug: "mississauga", label: "Mississauga", province: "ON" },
+  { slug: "brampton", label: "Brampton", province: "ON" },
+  { slug: "hamilton", label: "Hamilton", province: "ON" },
+  { slug: "london-on", label: "London", province: "ON" },
+  { slug: "markham", label: "Markham", province: "ON" },
+  { slug: "vaughan", label: "Vaughan", province: "ON" },
+  { slug: "kitchener", label: "Kitchener", province: "ON" },
+  { slug: "windsor", label: "Windsor", province: "ON" },
+  { slug: "richmond-hill", label: "Richmond Hill", province: "ON" },
+  { slug: "oakville", label: "Oakville", province: "ON" },
+  { slug: "burlington", label: "Burlington", province: "ON" },
+  { slug: "barrie", label: "Barrie", province: "ON" },
+  { slug: "oshawa", label: "Oshawa", province: "ON" },
+  { slug: "st-catharines", label: "St. Catharines", province: "ON" },
+  { slug: "guelph", label: "Guelph", province: "ON" },
+  { slug: "cambridge", label: "Cambridge", province: "ON" },
+  { slug: "waterloo", label: "Waterloo", province: "ON" },
+  { slug: "kingston", label: "Kingston", province: "ON" },
+  { slug: "thunder-bay", label: "Thunder Bay", province: "ON" },
+  { slug: "sudbury", label: "Sudbury", province: "ON" },
+  { slug: "peterborough", label: "Peterborough", province: "ON" },
+  { slug: "niagara-falls", label: "Niagara Falls", province: "ON" },
+  // British Columbia
+  { slug: "vancouver", label: "Vancouver", province: "BC" },
+  { slug: "surrey", label: "Surrey", province: "BC" },
+  { slug: "burnaby", label: "Burnaby", province: "BC" },
+  { slug: "richmond-bc", label: "Richmond", province: "BC" },
+  { slug: "kelowna", label: "Kelowna", province: "BC" },
+  { slug: "victoria", label: "Victoria", province: "BC" },
+  { slug: "nanaimo", label: "Nanaimo", province: "BC" },
+  { slug: "kamloops", label: "Kamloops", province: "BC" },
+  { slug: "abbotsford", label: "Abbotsford", province: "BC" },
+  { slug: "coquitlam", label: "Coquitlam", province: "BC" },
+  // Alberta
+  { slug: "calgary", label: "Calgary", province: "AB" },
+  { slug: "edmonton", label: "Edmonton", province: "AB" },
+  { slug: "red-deer", label: "Red Deer", province: "AB" },
+  { slug: "lethbridge", label: "Lethbridge", province: "AB" },
+  { slug: "st-albert", label: "St. Albert", province: "AB" },
+  { slug: "medicine-hat", label: "Medicine Hat", province: "AB" },
+  { slug: "grande-prairie", label: "Grande Prairie", province: "AB" },
+  // Quebec
+  { slug: "montreal", label: "Montreal", province: "QC" },
+  { slug: "quebec-city", label: "Quebec City", province: "QC" },
+  { slug: "laval", label: "Laval", province: "QC" },
+  { slug: "gatineau", label: "Gatineau", province: "QC" },
+  { slug: "longueuil", label: "Longueuil", province: "QC" },
+  { slug: "sherbrooke", label: "Sherbrooke", province: "QC" },
+  { slug: "trois-rivieres", label: "Trois-Rivières", province: "QC" },
+  // Manitoba
+  { slug: "winnipeg", label: "Winnipeg", province: "MB" },
+  { slug: "brandon", label: "Brandon", province: "MB" },
+  // Saskatchewan
+  { slug: "saskatoon", label: "Saskatoon", province: "SK" },
+  { slug: "regina", label: "Regina", province: "SK" },
+  // Nova Scotia
+  { slug: "halifax", label: "Halifax", province: "NS" },
+  { slug: "dartmouth", label: "Dartmouth", province: "NS" },
+  { slug: "sydney-ns", label: "Sydney", province: "NS" },
+  // New Brunswick
+  { slug: "saint-john", label: "Saint John", province: "NB" },
+  { slug: "moncton", label: "Moncton", province: "NB" },
+  { slug: "fredericton", label: "Fredericton", province: "NB" },
+  // Newfoundland
+  { slug: "st-johns", label: "St. John's", province: "NL" },
+  // PEI
+  { slug: "charlottetown", label: "Charlottetown", province: "PE" },
+];
+
+const SEARCH_TYPES = ["therapist", "psychologist", "counsellor", "psychotherapist"];
+
+// ---------------------------------------------------------------------------
+// Supabase
+// ---------------------------------------------------------------------------
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+const CATEGORY_KEYWORDS: [RegExp, string][] = [
+  [/psycholog/i, "psychologist"],
+  [/psychotherap/i, "psychotherapist"],
+  [/counsel/i, "counsellor"],
+  [/social work/i, "social-worker"],
+  [/couples|marriage/i, "couples-therapist"],
+  [/family/i, "family-therapist"],
+  [/child|youth|adolescent|pediatric/i, "child-therapist"],
+  [/addiction|substance|recovery/i, "addiction-counsellor"],
+  [/trauma|ptsd|emdr/i, "trauma-therapist"],
+  [/art therap|music therap|creative/i, "art-therapist"],
+];
+
+function categorize(name: string): string {
+  for (const [pattern, category] of CATEGORY_KEYWORDS) {
+    if (pattern.test(name)) return category;
+  }
+  return "psychotherapist";
+}
+
+const CATEGORY_DISPLAY: Record<string, string> = {
+  psychotherapist: "psychotherapist",
+  psychologist: "psychologist",
+  counsellor: "counsellor",
+  "social-worker": "social worker",
+  "couples-therapist": "couples therapist",
+  "family-therapist": "family therapist",
+  "child-therapist": "child & youth therapist",
+  "addiction-counsellor": "addiction counsellor",
+  "trauma-therapist": "trauma therapist",
+  "art-therapist": "art & creative therapist",
+};
+
+function buildPhotoUrl(photoRef: string, maxWidth: number = 400): string {
+  return `https://maps.googleapis.com/maps/api/place/photo?maxwidth=${maxWidth}&photoreference=${photoRef}&key=${process.env.GOOGLE_PLACES_API_KEY}`;
+}
+
+// ---------------------------------------------------------------------------
+// Google Places API (Legacy Text Search)
+// ---------------------------------------------------------------------------
+
+let lastRequestTime = 0;
+
+async function rateLimitedFetch(url: string): Promise<any> {
+  const now = Date.now();
+  const elapsed = now - lastRequestTime;
+  if (elapsed < 500) {
+    await sleep(500 - elapsed);
+  }
+  lastRequestTime = Date.now();
+  const res = await fetch(url);
+  return res.json();
+}
+
+interface PlaceResult {
+  place_id: string;
+  name: string;
+  formatted_address: string;
+  rating?: number;
+  user_ratings_total?: number;
+  photos?: { photo_reference: string }[];
+}
+
+async function searchPlaces(query: string): Promise<PlaceResult[]> {
+  const apiKey = process.env.GOOGLE_PLACES_API_KEY!;
+  const allResults: PlaceResult[] = [];
+
+  // First page
+  const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${apiKey}`;
+  const data = await rateLimitedFetch(url);
+  if (data.results) allResults.push(...data.results);
+
+  // Follow next_page_token for up to 2 more pages (60 results max)
+  let nextPageToken = data.next_page_token;
+  let pages = 1;
+  while (nextPageToken && pages < 3) {
+    // Google requires ~2s before next_page_token is valid
+    await sleep(2000);
+    const pageUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?pagetoken=${nextPageToken}&key=${apiKey}`;
+    const pageData = await rateLimitedFetch(pageUrl);
+    if (pageData.results) allResults.push(...pageData.results);
+    nextPageToken = pageData.next_page_token;
+    pages++;
+  }
+
+  return allResults;
+}
+
+// ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
+
+async function main() {
+  console.log("=== DoINeedATherapist.org — National Seeding Script ===\n");
+
+  // Track seen place_ids globally for deduplication
+  const seenPlaceIds = new Set<string>();
+
+  // Also load existing place_ids from DB to avoid re-inserting
+  const { data: existingRows } = await supabase
+    .from(TABLE)
+    .select("google_place_id")
+    .not("google_place_id", "is", null);
+
+  if (existingRows) {
+    for (const row of existingRows) {
+      if (row.google_place_id) seenPlaceIds.add(row.google_place_id);
+    }
+  }
+  if (seenPlaceIds.size > 0) {
+    console.log(`Found ${seenPlaceIds.size} existing listings in DB — will skip dupes.\n`);
+  }
+
+  // Group regions by province for ordered processing
+  const provinceOrder = ["ON", "BC", "AB", "QC", "MB", "SK", "NS", "NB", "NL", "PE"];
+  const regionsByProvince = new Map<string, Region[]>();
+  for (const r of REGIONS) {
+    if (!regionsByProvince.has(r.province)) regionsByProvince.set(r.province, []);
+    regionsByProvince.get(r.province)!.push(r);
+  }
+
+  const provinceTotals: Record<string, { inserted: number; dupes: number }> = {};
+  let totalInserted = 0;
+  let totalDupes = 0;
+  let totalErrors = 0;
+
+  for (const prov of provinceOrder) {
+    const regions = regionsByProvince.get(prov);
+    if (!regions) continue;
+
+    const provLabel = PROVINCE_LABELS[prov];
+    console.log(`\n--- ${provLabel} (${prov}) ---`);
+    provinceTotals[prov] = { inserted: 0, dupes: 0 };
+
+    for (const region of regions) {
+      let cityInserted = 0;
+      let cityDupes = 0;
+
+      for (const searchType of SEARCH_TYPES) {
+        const query = `${searchType} in ${region.label} ${provLabel}`;
+        const places = await searchPlaces(query);
+
+        for (const place of places) {
+          // Deduplicate by google_place_id
+          if (seenPlaceIds.has(place.place_id)) {
+            cityDupes++;
+            continue;
+          }
+          seenPlaceIds.add(place.place_id);
+
+          const listingType = categorize(place.name);
+          const displayType = CATEGORY_DISPLAY[listingType] || listingType;
+          const city = region.label;
+          const slug = slugify(`${place.name}-${city}`);
+
+          // Build photo URLs (up to 3, Legacy photo endpoint)
+          const photoUrls: string[] = [];
+          if (place.photos) {
+            for (const photo of place.photos.slice(0, 3)) {
+              photoUrls.push(buildPhotoUrl(photo.photo_reference));
+            }
+          }
+
+          const listing = {
+            slug,
+            name: place.name,
+            google_place_id: place.place_id,
+            description: `${place.name} is a ${displayType} serving the ${city} area.`,
+            short_description: `${displayType.charAt(0).toUpperCase() + displayType.slice(1)} in ${city}, ${provLabel}`,
+            city,
+            province_state: prov,
+            country: "CA",
+            region_slug: region.slug,
+            listing_type: listingType,
+            google_rating: place.rating || null,
+            google_review_count: place.user_ratings_total || null,
+            photo_urls: photoUrls.length > 0 ? photoUrls : null,
+            claimed: false,
+            featured: false,
+          };
+
+          const { error } = await supabase
+            .from(TABLE)
+            .upsert(listing, { onConflict: "slug" });
+
+          if (error) {
+            // If slug conflict due to different city, append province
+            if (error.message.includes("duplicate") || error.code === "23505") {
+              listing.slug = slugify(`${place.name}-${city}-${prov.toLowerCase()}`);
+              const { error: retryError } = await supabase
+                .from(TABLE)
+                .upsert(listing, { onConflict: "slug" });
+              if (retryError) {
+                totalErrors++;
+              } else {
+                cityInserted++;
+              }
+            } else {
+              console.error(`  Error: ${place.name} — ${error.message}`);
+              totalErrors++;
+            }
+          } else {
+            cityInserted++;
+          }
+        }
+      }
+
+      console.log(
+        `  Seeding ${region.label}, ${prov}... ${cityInserted} new (${cityDupes} dupes skipped)`
+      );
+      provinceTotals[prov].inserted += cityInserted;
+      provinceTotals[prov].dupes += cityDupes;
+      totalInserted += cityInserted;
+      totalDupes += cityDupes;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Summary
+  // ---------------------------------------------------------------------------
+
+  console.log("\n\n========== SEEDING SUMMARY ==========\n");
+  console.log("Province            | New  | Dupes");
+  console.log("--------------------|------|------");
+  for (const prov of provinceOrder) {
+    const t = provinceTotals[prov];
+    if (!t) continue;
+    const label = (PROVINCE_LABELS[prov] || prov).padEnd(20);
+    console.log(`${label}| ${String(t.inserted).padStart(4)} | ${String(t.dupes).padStart(5)}`);
+  }
+  console.log("--------------------|------|------");
+  console.log(
+    `${"TOTAL".padEnd(20)}| ${String(totalInserted).padStart(4)} | ${String(totalDupes).padStart(5)}`
+  );
+  if (totalErrors > 0) console.log(`\nErrors: ${totalErrors}`);
+
+  // ---------------------------------------------------------------------------
+  // Post-seeding verification
+  // ---------------------------------------------------------------------------
+
+  console.log("\n\n========== VERIFICATION ==========\n");
+
+  // Count by province
+  const { data: allListings } = await supabase
+    .from(TABLE)
+    .select("province_state, google_place_id, name, city, listing_type, slug")
+    .order("created_at", { ascending: true });
+
+  if (allListings) {
+    console.log(`Total listings in DB: ${allListings.length}\n`);
+
+    // Count by province
+    const byCounts: Record<string, number> = {};
+    for (const l of allListings) {
+      const p = l.province_state || "Unknown";
+      byCounts[p] = (byCounts[p] || 0) + 1;
+    }
+    console.log("Listings by province:");
+    for (const [p, count] of Object.entries(byCounts).sort((a, b) => b[1] - a[1])) {
+      console.log(`  ${PROVINCE_LABELS[p] || p}: ${count}`);
+    }
+
+    // Check for duplicate google_place_ids
+    const placeIdMap = new Map<string, number>();
+    for (const l of allListings) {
+      if (l.google_place_id) {
+        placeIdMap.set(l.google_place_id, (placeIdMap.get(l.google_place_id) || 0) + 1);
+      }
+    }
+    const dupeIds = [...placeIdMap.entries()].filter(([, count]) => count > 1);
+    if (dupeIds.length === 0) {
+      console.log("\nNo duplicate google_place_ids found.");
+    } else {
+      console.log(`\nWARNING: ${dupeIds.length} duplicate google_place_ids found!`);
+    }
+
+    // Show first 5 listings
+    console.log("\nFirst 5 listings:");
+    for (const l of allListings.slice(0, 5)) {
+      console.log(`  ${l.name} | ${l.city}, ${l.province_state} | ${l.listing_type} | /${l.slug}`);
+    }
+  }
+
+  console.log("\nDone!");
+}
+
+main().catch((err) => {
+  console.error("Fatal error:", err);
+  process.exit(1);
+});
