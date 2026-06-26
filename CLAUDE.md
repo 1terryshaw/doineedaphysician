@@ -43,6 +43,43 @@ launch — physician data is migrated in Phase 2d (INSERT…SELECT from ther_lis
    description, email unsubscribe + List-Unsubscribe headers, `/api/health` 200 + count,
    mobile+desktop clean, Tailwind globs cover all TSX.
 
+## Specialty Tiles & Confidence Tiers (Phase 2d Part 1)
+
+The homepage has two tile sections, and `/specialty/<slug>` pages browse by specialty.
+
+- **Section A — Browse by Specialty** (`verticalConfig.categoryLabels`, 8 internal tiles):
+  Family Medicine, Internal Medicine, Pediatrician, OB/GYN, Cardiologist, Orthopedic
+  Surgeon, Surgeon (general surgery only), Neurologist. Each links to
+  `/specialty/<slug>`. Per-tile counts render **dynamically** from the
+  `physician_specialty_counts()` RPC — never hardcoded. **Psychiatrist and
+  Dermatologist are intentionally NOT Section-A tiles** (psychiatry 2084P* is
+  excluded from the Phase 2d move; dermatology has its own directory → Section B).
+- **Section B — Related specialists** (`verticalConfig.relatedSpecialists`, 4 external
+  cards, `target=_blank rel=noopener`): Therapist → doineedatherapist.org,
+  Dermatologist → doineedadermatologist.com, Chiropractor → doineedachiropractor.com,
+  Optometrist → doineedanoptometrist.com.
+
+**Specialty membership** is derived from `derived_taxonomy` (NUCC codes) via the
+first-match-wins prefix map in `therapist-reclassify/phase2d-migration/07-tile-prefix-map.md`,
+encoded **once** in two DB RPCs: `physician_specialty_counts()` and
+`physician_specialty_listings(p_slug)`. Cardiology (`^207RC`) breaks out of internal
+medicine (`^207R`) — Option A. Surgeon = `^208600000X` only.
+
+**Confidence-tier rendering on `/specialty/<slug>`** (driven by `taxonomy_source`):
+- `nppes_npi` (NPI-authoritative): **no badge**, sorted **first** (RPC ORDER BY
+  `taxonomy_source='nppes_npi' DESC`).
+- `nppes_name` (name-matched to NPPES, lower confidence): subtle muted italic
+  `specialty inferred ⓘ` indicator on the card + a section footnote
+  ("classified by matching the listing name to public NPPES records … verify with
+  the state medical board"). Honest, not alarming. Sorted **after** nppes_npi rows.
+- `taxonomy_source IS NULL` (honest unknown): **never appears** on `/specialty`
+  pages — both RPCs filter `taxonomy_source IS NOT NULL` (and `derived_taxonomy IS NOT NULL`).
+  These rows remain browsable via `/directory` and region/city pages.
+
+Empty-state: when a tile has 0 indexed listings, `/specialty/<slug>` shows a friendly
+"index still being built" panel that links to `/directory?listing_type=<slug>` — never a
+404, never a dead end. (Pre-Part-2-move, all specialty counts read 0; that is expected.)
+
 ## Domain Rules
 - NEVER use www in NEXT_PUBLIC_BASE_URL (`https://doineedaphysician.com`)
 - NEVER set Domain attribute on cookies (browser defaults to request origin)

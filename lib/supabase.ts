@@ -91,6 +91,13 @@ export interface Listing {
   google_rating?: number;
   google_review_count?: number;
   photo_urls?: string[];
+  // Phase 2d — taxonomy reclassification provenance.
+  derived_taxonomy?: string;
+  // 'nppes_npi' = NPI-authoritative (full confidence), 'nppes_name' = name-matched
+  // to NPPES (lower confidence — render "specialty inferred" indicator), NULL =
+  // honest unknown (never surfaced on /specialty pages).
+  taxonomy_source?: string;
+  derived_at?: string;
   created_at: string;
   updated_at?: string;
 }
@@ -448,6 +455,49 @@ export async function getListingsRange(offset: number, limit: number): Promise<S
     from = to + 1;
   }
   return all;
+}
+
+// Phase 2d — /specialty/<slug> support. Specialty membership is derived from
+// derived_taxonomy (NUCC codes) via two STABLE SQL RPCs that keep the
+// first-match-wins prefix map (07-tile-prefix-map.md) in ONE place in the DB:
+//   physician_specialty_counts()        → per-tile published counts
+//   physician_specialty_listings(slug)  → published rows for one tile, ordered
+//     nppes_npi-first then tier/featured/rating. Rows with NULL taxonomy_source
+//     (honest unknown) and NULL derived_taxonomy are excluded by both RPCs.
+
+// Canonical Section-A tiles (slug → label/emoji/description). Single source of
+// truth for the homepage tile grid, /specialty validation, and /specialty copy.
+// Order matches the approved Section-A spec. Cardiology breaks out of internal
+// medicine (Option A); psychiatry/dermatology are intentionally NOT tiles.
+export interface SpecialtyTile {
+  slug: string;
+  label: string;
+  emoji: string;
+  description: string;
+}
+
+export async function getSpecialtyCounts(): Promise<Record<string, number>> {
+  const { data, error } = await supabaseAdmin.rpc("physician_specialty_counts");
+  if (error) {
+    console.error("getSpecialtyCounts error:", error);
+    return {};
+  }
+  const out: Record<string, number> = {};
+  for (const r of (data as { slug: string; n: number }[] | null) || []) {
+    out[String(r.slug)] = Number(r.n) || 0;
+  }
+  return out;
+}
+
+export async function getSpecialtyListings(slug: string): Promise<Listing[]> {
+  const { data, error } = await supabaseAdmin.rpc("physician_specialty_listings", {
+    p_slug: slug,
+  });
+  if (error) {
+    console.error(`getSpecialtyListings(${slug}) error:`, error);
+    return [];
+  }
+  return (data as Listing[] | null) || [];
 }
 
 // HEAD-only count query for sitemap chunk planning. Avoids fetching row data.

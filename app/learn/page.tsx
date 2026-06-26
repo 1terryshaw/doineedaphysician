@@ -28,10 +28,10 @@ const specialties = [
       "Pediatricians care for infants, children, and adolescents — covering growth and development, immunizations, and childhood illnesses.",
   },
   {
-    title: "Psychiatry",
-    emoji: "🧠",
+    title: "Neurology",
+    emoji: "⚡",
     description:
-      "Psychiatrists are medical doctors who diagnose and treat mental health conditions, including the ability to prescribe medication. (For talk therapy and counselling, see our therapist directory.)",
+      "Neurologists diagnose and treat disorders of the brain, spine, and nervous system — including conditions such as stroke, epilepsy, migraine, and Parkinson's disease.",
   },
   {
     title: "Cardiology",

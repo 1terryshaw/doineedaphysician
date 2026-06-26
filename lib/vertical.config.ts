@@ -56,18 +56,32 @@ const verticalConfig = {
   },
   triageDisclaimer: "This directory provides listing information only and is not medical advice, diagnosis, or treatment. If you are experiencing a medical emergency, call 911.",
 
-  // === CATEGORIES (physician specialties) ===
+  // === SECTION A: PHYSICIAN SPECIALTY TILES (Phase 2d) ===
+  // The 8 internal specialty tiles. Each maps to a derived_taxonomy NUCC-prefix
+  // group (see therapist-reclassify/.../07-tile-prefix-map.md and the
+  // physician_specialty_* RPCs). Order is the approved Section-A order; cardiology
+  // breaks out of internal medicine (Option A). Psychiatry (2084P*, excluded from
+  // the move) and Dermatology (own directory — Section B) are intentionally NOT
+  // tiles here. Homepage links these to /specialty/<slug>, not /directory.
   categoryLabels: [
     { slug: "family-medicine", label: "Family Medicine", emoji: "🩺", description: "Primary care for patients of all ages" },
     { slug: "internal-medicine", label: "Internal Medicine", emoji: "🫀", description: "Adult primary and complex chronic care" },
     { slug: "pediatrics", label: "Pediatrician", emoji: "🧒", description: "Medical care for infants, children, and adolescents" },
-    { slug: "psychiatry", label: "Psychiatrist", emoji: "🧠", description: "Medical diagnosis and treatment of mental health conditions" },
     { slug: "obgyn", label: "OB/GYN", emoji: "🤰", description: "Obstetrics, gynecology, and women's health" },
     { slug: "cardiology", label: "Cardiologist", emoji: "❤️", description: "Heart and cardiovascular conditions" },
-    { slug: "dermatology", label: "Dermatologist", emoji: "🧴", description: "Skin, hair, and nail conditions" },
     { slug: "orthopedics", label: "Orthopedic Surgeon", emoji: "🦴", description: "Bones, joints, and musculoskeletal care" },
-    { slug: "general-surgery", label: "Surgeon", emoji: "🏥", description: "Surgical evaluation and procedures" },
+    { slug: "general-surgery", label: "Surgeon", emoji: "🏥", description: "General surgical evaluation and procedures" },
     { slug: "neurology", label: "Neurologist", emoji: "⚡", description: "Brain, spine, and nervous system conditions" },
+  ],
+
+  // === SECTION B: RELATED SPECIALISTS (external cross-links, Phase 2d) ===
+  // Specialties that have their OWN empire directories. Rendered as external
+  // cards (target=_blank rel=noopener) on the homepage under "Related specialists".
+  relatedSpecialists: [
+    { label: "Therapist", description: "Mental health, counseling, and talk therapy", url: "https://doineedatherapist.org" },
+    { label: "Dermatologist", description: "Skin, hair, and nail conditions", url: "https://doineedadermatologist.com" },
+    { label: "Chiropractor", description: "Spinal alignment and musculoskeletal therapy", url: "https://doineedachiropractor.com" },
+    { label: "Optometrist", description: "Eye exams and vision care", url: "https://doineedanoptometrist.com" },
   ],
 
   // === NATIONAL REGIONS ===
