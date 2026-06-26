@@ -63,15 +63,18 @@ const verticalConfig = {
   // breaks out of internal medicine (Option A). Psychiatry (2084P*, excluded from
   // the move) and Dermatology (own directory — Section B) are intentionally NOT
   // tiles here. Homepage links these to /specialty/<slug>, not /directory.
+  // Slugs use practitioner form (Part 1.5) to match tile labels + search intent
+  // ("cardiologist near me" >> "cardiology near me"). family-medicine and
+  // internal-medicine keep specialty form (Option B — natural search terms).
   categoryLabels: [
     { slug: "family-medicine", label: "Family Medicine", emoji: "🩺", description: "Primary care for patients of all ages" },
     { slug: "internal-medicine", label: "Internal Medicine", emoji: "🫀", description: "Adult primary and complex chronic care" },
-    { slug: "pediatrics", label: "Pediatrician", emoji: "🧒", description: "Medical care for infants, children, and adolescents" },
+    { slug: "pediatrician", label: "Pediatrician", emoji: "🧒", description: "Medical care for infants, children, and adolescents" },
     { slug: "obgyn", label: "OB/GYN", emoji: "🤰", description: "Obstetrics, gynecology, and women's health" },
-    { slug: "cardiology", label: "Cardiologist", emoji: "❤️", description: "Heart and cardiovascular conditions" },
-    { slug: "orthopedics", label: "Orthopedic Surgeon", emoji: "🦴", description: "Bones, joints, and musculoskeletal care" },
-    { slug: "general-surgery", label: "Surgeon", emoji: "🏥", description: "General surgical evaluation and procedures" },
-    { slug: "neurology", label: "Neurologist", emoji: "⚡", description: "Brain, spine, and nervous system conditions" },
+    { slug: "cardiologist", label: "Cardiologist", emoji: "❤️", description: "Heart and cardiovascular conditions" },
+    { slug: "orthopedic-surgeon", label: "Orthopedic Surgeon", emoji: "🦴", description: "Bones, joints, and musculoskeletal care" },
+    { slug: "general-surgeon", label: "Surgeon", emoji: "🏥", description: "General surgical evaluation and procedures" },
+    { slug: "neurologist", label: "Neurologist", emoji: "⚡", description: "Brain, spine, and nervous system conditions" },
   ],
 
   // === SECTION B: RELATED SPECIALISTS (external cross-links, Phase 2d) ===

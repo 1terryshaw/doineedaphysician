@@ -51,7 +51,12 @@ The homepage has two tile sections, and `/specialty/<slug>` pages browse by spec
   Family Medicine, Internal Medicine, Pediatrician, OB/GYN, Cardiologist, Orthopedic
   Surgeon, Surgeon (general surgery only), Neurologist. Each links to
   `/specialty/<slug>`. Per-tile counts render **dynamically** from the
-  `physician_specialty_counts()` RPC — never hardcoded. **Psychiatrist and
+  `physician_specialty_counts()` RPC — never hardcoded.
+  **Slug convention (Part 1.5):** practitioner form to match labels + search intent —
+  `cardiologist`, `pediatrician`, `orthopedic-surgeon`, `general-surgeon`, `neurologist`,
+  `obgyn`; `family-medicine` and `internal-medicine` keep specialty form (Option B —
+  natural search terms). The slug strings live in `categoryLabels` (single source of
+  truth) AND must match the `physician_specialty_*` RPC `CASE`/`WHEN p_slug=` branches. **Psychiatrist and
   Dermatologist are intentionally NOT Section-A tiles** (psychiatry 2084P* is
   excluded from the Phase 2d move; dermatology has its own directory → Section B).
 - **Section B — Related specialists** (`verticalConfig.relatedSpecialists`, 4 external

@@ -13,7 +13,10 @@ export async function GET() {
   const baseUrl = `https://${verticalConfig.domain}`;
 
   const listingCount = await getListingsCount();
-  const headers = STATIC_PATH_COUNT + verticalConfig.regions.length;
+  const headers =
+    STATIC_PATH_COUNT +
+    verticalConfig.categoryLabels.length +
+    verticalConfig.regions.length;
   const firstChunkListingCapacity = Math.max(0, CHUNK_SIZE - headers);
   const remainingListings = Math.max(0, listingCount - firstChunkListingCapacity);
   const remainingChunks = Math.ceil(remainingListings / CHUNK_SIZE);

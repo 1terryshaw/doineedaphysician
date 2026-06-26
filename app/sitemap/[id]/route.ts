@@ -41,7 +41,10 @@ export async function GET(
   const id = Number(match[1]);
 
   const baseUrl = `https://${verticalConfig.domain}`;
-  const headers = STATIC_ENTRIES.length + verticalConfig.regions.length;
+  const headers =
+    STATIC_ENTRIES.length +
+    verticalConfig.categoryLabels.length +
+    verticalConfig.regions.length;
   const firstChunkListingCapacity = Math.max(0, CHUNK_SIZE - headers);
 
   const offset =
@@ -56,6 +59,10 @@ export async function GET(
   if (id === 0) {
     for (const e of STATIC_ENTRIES) {
       parts.push(urlEntry(`${baseUrl}${e.path}`, now, e.changefreq, e.priority));
+    }
+    // Specialty hub pages (/specialty/<slug>) — Part 1.5.
+    for (const cat of verticalConfig.categoryLabels) {
+      parts.push(urlEntry(`${baseUrl}/specialty/${cat.slug}`, now, "weekly", "0.7"));
     }
     for (const region of verticalConfig.regions) {
       parts.push(urlEntry(`${baseUrl}/${region.slug}`, now, "daily", "0.8"));
