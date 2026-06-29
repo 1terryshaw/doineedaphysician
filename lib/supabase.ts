@@ -1,6 +1,7 @@
 // site-flip-version: 2026-05-12-empire-sweep
 import { createClient } from "@supabase/supabase-js";
 import verticalConfig from "@/lib/vertical.config";
+import { taxonomyFilterForSlug } from "@/lib/specialty";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -186,7 +187,18 @@ export async function getFilteredListings(filters: ListingFilters): Promise<List
       }
     }
     if (filters.listing_type) {
-      query = query.eq("listing_type", filters.listing_type);
+      // TDL #806 — resolve the specialty param against derived_taxonomy (NUCC,
+      // ~91.6% populated) via the shared prefix map, NOT the dead listing_type
+      // column (~0.09%). internal-medicine also excludes the more-specific
+      // cardiology prefix (first-match-wins, mirrors the RPC).
+      const tax = taxonomyFilterForSlug(filters.listing_type);
+      if (tax) {
+        query = query.filter("derived_taxonomy", "match", tax.include);
+        if (tax.exclude) query = query.not("derived_taxonomy", "match", tax.exclude);
+      } else {
+        // Unknown slug (not a known tile) — legacy fallback to the old column.
+        query = query.eq("listing_type", filters.listing_type);
+      }
     }
     if (filters.q) {
       const term = filters.q.replace(/'/g, "''");

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Listing } from "@/lib/supabase";
 import verticalConfig from "@/lib/vertical.config";
 import TierBadge from "@/components/TierBadge";
+import { tileSlugForTaxonomy } from "@/lib/specialty";
 
 function renderStars(rating: number) {
   const full = Math.floor(rating);
@@ -17,8 +18,11 @@ function renderStars(rating: number) {
 }
 
 export default function ListingCard({ listing }: { listing: Listing }) {
-  const specialtyLabel = listing.listing_type
-    ? verticalConfig.categoryLabels.find((c) => c.slug === listing.listing_type)?.label
+  // TDL #806 — derive the specialty badge from derived_taxonomy (NUCC code,
+  // ~91.6% populated) via the shared prefix map, NOT the dead listing_type column.
+  const specialtySlug = tileSlugForTaxonomy(listing.derived_taxonomy);
+  const specialtyLabel = specialtySlug
+    ? verticalConfig.categoryLabels.find((c) => c.slug === specialtySlug)?.label
     : null;
 
   return (
