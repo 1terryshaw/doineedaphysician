@@ -1,4 +1,5 @@
--- TDL #801 — Physician /specialty RPC cap/order fix (SQL-only)
+-- TDL #805 — Physician /specialty RPC cap/order fix (SQL-only)
+-- (renumbered from #801 — a concurrent session claimed #801/#802 mid-session)
 --
 -- Problem: physician_specialty_listings(p_slug) ordered
 --   (taxonomy_source='nppes_npi') DESC ... LIMIT 300
