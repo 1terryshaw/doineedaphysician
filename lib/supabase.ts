@@ -3,6 +3,15 @@ import { createClient } from "@supabase/supabase-js";
 import verticalConfig from "@/lib/vertical.config";
 import { taxonomyFilterForSlug } from "@/lib/specialty";
 
+// BUG-S1 (audit 2026-07-02): PostgREST's .or() grammar treats , ( ) as structural,
+// so a raw search term containing them fails the whole filter with PGRST100 and the
+// page renders 0 results. Values must be double-quoted, with embedded \ and "
+// backslash-escaped. Returns a ready-to-interpolate quoted %term% pattern.
+export function sanitizeOrTerm(raw: string): string {
+  const escaped = raw.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  return `"%${escaped}%"`;
+}
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
@@ -201,9 +210,9 @@ export async function getFilteredListings(filters: ListingFilters): Promise<List
       }
     }
     if (filters.q) {
-      const term = filters.q.replace(/'/g, "''");
+      const term = sanitizeOrTerm(filters.q);
       query = query.or(
-        `name.ilike.%${term}%,city.ilike.%${term}%`
+        `name.ilike.${term},city.ilike.${term}`
       );
     }
   }
