@@ -8,7 +8,7 @@ const verticalConfig = {
   entity: "Physician",
   entityPlural: "Physicians",
   slug: "doineedaphysician",
-  domain: "www.doineedaphysician.com",
+  domain: "doineedaphysician.com",
   displayDomain: "doineedaphysician.com",
   supportEmail: "hello@doineedaphysician.com",
   primaryColor: "#6B8F71",
