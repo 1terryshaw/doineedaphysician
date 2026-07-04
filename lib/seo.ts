@@ -2,10 +2,13 @@ import verticalConfig from "@/lib/vertical.config";
 
 /**
  * Production canonical site URL. Derives strictly from verticalConfig.domain
- * (stored as www form, Fix-7 standard) so canonical/robots/sitemap always match
- * the served www origin. The NEXT_PUBLIC_BASE_URL env override was removed: it
- * was set to the apex form in Vercel prod and produced apex/www host mismatch
- * ("Duplicate without user-selected canonical" in GSC). See gsc-sweep Step 2A.
+ * (stored as the APEX form) so canonical/robots/sitemap always match the served
+ * APEX origin. Vercel serves the apex and 308-redirects www -> apex, so the
+ * canonical host MUST be apex (matches the CLAUDE.md Domain Rules). The earlier
+ * www form made canonical/og disagree with the served apex host and produced an
+ * apex/www mismatch ("Page with redirect" + "Duplicate, Google chose different"
+ * in GSC). The NEXT_PUBLIC_BASE_URL env override stays removed — canonical is
+ * code-derived, not env-driven. See canonical-host-align.
  *
  * Trailing slash stripped so callers can concatenate paths safely.
  */
