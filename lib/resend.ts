@@ -384,3 +384,20 @@ export async function sendClaimEmail(
     return { ok: false, error: err?.message ?? String(err) };
   }
 }
+
+
+export async function sendAddBusinessEmail(email: string, slug: string, token: string, businessName: string): Promise<AuthSendResult> {
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+  const verifyLink = `${baseUrl}/api/claim/verify?token=${token}&slug=${slug}`;
+  const name = businessName || "your business";
+  try {
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    const { data, error } = await resend.emails.send({
+      from: AUTH_FROM, to: email,
+      subject: `Verify your ${verticalConfig.name} listing — magic link inside`,
+      html: `<h2>Verify your ${verticalConfig.name} listing</h2><p>Thanks for adding <strong>${name}</strong> to ${verticalConfig.name}. Click below to verify your email and finish your listing. The link expires in 24 hours.</p><p><a href="${verifyLink}" style="display:inline-block;padding:12px 24px;background:${verticalConfig.primaryColor};color:white;text-decoration:none;border-radius:6px;">Verify and continue</a></p><p>Or copy this link: ${verifyLink}</p><p style="color:#666;font-size:12px;">If you didn't request this, you can safely ignore this email.</p>`,
+    });
+    if (error) return { ok: false, error: error.message };
+    return { ok: true, id: data?.id ?? "" };
+  } catch (err: any) { return { ok: false, error: err?.message ?? String(err) }; }
+}

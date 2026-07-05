@@ -342,10 +342,11 @@ export default async function ListingPage({ params }: Props) {
             </div>
 
             {/* Claim CTA */}
-            <ListingClaimCTA
+            <><ListingClaimCTA
               listingSlug={listing.slug}
               listingClaimed={listing.claimed}
             />
+            <p className="mt-4 text-sm text-gray-500">Run a different physician{listing.city ? ` in ${listing.city}` : ""}? <Link href="/list-your-business" className="underline" style={{ color: verticalConfig.primaryColor }}>Add your business &rarr;</Link></p></>
           </div>
 
           {/* Sidebar */}

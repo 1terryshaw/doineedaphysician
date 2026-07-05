@@ -22,6 +22,7 @@ export default function Footer() {
                   Directory
                 </Link>
               </li>
+              <li><Link href="/list-your-business" className="hover:text-white">Add my physician</Link></li>
               <li>
                 <Link href="/pricing" className="hover:text-white">
                   Pricing

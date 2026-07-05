@@ -2,6 +2,7 @@ import verticalConfig from "@/lib/vertical.config";
 import {
   sendMagicLink as sendMagicLinkResend,
   sendClaimEmail as sendClaimEmailResend,
+  sendAddBusinessEmail as sendAddBusinessEmailResend,
   type AuthSendResult,
 } from "@/lib/resend";
 
@@ -22,6 +23,16 @@ export async function sendClaimEmail(
   token: string
 ): Promise<AuthSendResult> {
   return sendClaimEmailResend(email, slug, token);
+}
+
+// Self-serve "Add my business" magic link (TDL #655). Same /api/claim/verify endpoint.
+export async function sendAddBusinessEmail(
+  email: string,
+  slug: string,
+  token: string,
+  businessName: string
+): Promise<AuthSendResult> {
+  return sendAddBusinessEmailResend(email, slug, token, businessName);
 }
 
 export async function sendInquiryNotification(
