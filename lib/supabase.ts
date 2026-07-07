@@ -122,7 +122,7 @@ export async function getListings(regionSlug?: string): Promise<Listing[]> {
       .order("tier_priority", { ascending: false, nullsFirst: false })
       .order("featured", { ascending: false, nullsFirst: false })
       .order("google_rating", { ascending: false, nullsFirst: false })
-      .order("name_sortkey", { ascending: true }).limit(200);
+      .order("name_sortkey", { ascending: true }).order("id", { ascending: true }).limit(200);
 
     if (regionSlug) {
       query = query.eq("region_slug", regionSlug);
@@ -159,7 +159,7 @@ export async function getFilteredListings(filters: ListingFilters): Promise<List
     .order("tier_priority", { ascending: false, nullsFirst: false })
     .order("featured", { ascending: false, nullsFirst: false })
     .order("google_rating", { ascending: false, nullsFirst: false })
-    .order("name_sortkey", { ascending: true });
+    .order("name_sortkey", { ascending: true }).order("id", { ascending: true });
   {
     // FIX-EMPIRE-CASCADING-SWEEP: cascading dropdowns send
     // ?region=<PROVINCE_CODE>&city=<city_slug>. Legacy single-param shapes
@@ -307,7 +307,7 @@ export async function getListingsByCity(provinceCode: string, citySlug: string):
       .order("tier_priority", { ascending: false, nullsFirst: false })
       .order("featured", { ascending: false, nullsFirst: false })
       .order("google_rating", { ascending: false, nullsFirst: false })
-      .order("name_sortkey", { ascending: true }).limit(200);
+      .order("name_sortkey", { ascending: true }).order("id", { ascending: true }).limit(200);
     return query as unknown as PromiseLike<{ data: Listing[] | null; error: unknown }>;
   }, { maxRows: USER_PAGE_MAX_ROWS });
 }
