@@ -5,7 +5,6 @@ import {
   getFilteredListings,
   getDirectoryRegions,
   getRegionCounts,
-  getListingsCount,
   REGION_PAGE_SIZE,
   type DirectoryRegion,
 } from "@/lib/supabase";
@@ -55,7 +54,7 @@ export default async function DirectoryPage({
 
   // ── Default view (no filters): browse-by-region hub. ──────────────────────
   if (!hasFilters) {
-    const [counts, total] = await Promise.all([getRegionCounts(), getListingsCount()]);
+    const counts = await getRegionCounts();
     const ca: HubRegion[] = [];
     const us: HubRegion[] = [];
     for (const c of counts) {
@@ -81,9 +80,6 @@ export default async function DirectoryPage({
         <div className="mb-6">
           <SearchBar variant="directory" regions={runtimeRegions.length > 0 ? runtimeRegions : undefined} />
         </div>
-        <p className="text-gray-600 mb-8">
-          {total.toLocaleString("en-US")} physicians in our directory. Choose a state or province to browse.
-        </p>
         {sections.length === 0 ? (
           <p className="text-gray-500 text-center py-12">No regions available yet. Check back soon!</p>
         ) : (
@@ -147,12 +143,6 @@ export default async function DirectoryPage({
         />
       </div>
 
-      <p className="text-gray-600 mb-4">
-        {listings.length === 0
-          ? "No physicians"
-          : `Page ${page} — ${listings.length} ${listings.length === 1 ? "physician" : "physicians"}`}
-        {" matching your filters"}.
-      </p>
 
       <div className="flex flex-wrap gap-2 mb-6">
         {q && (
