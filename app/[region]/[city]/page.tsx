@@ -1,5 +1,6 @@
 import { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
+import { resolveCityRedirect } from "@/lib/city-redirects";
 import { getListingsByCity } from "@/lib/supabase";
 import { getCityBySlug, CITIES, PROVINCES } from "@/lib/constants";
 import ListingCard from "@/components/ListingCard";
@@ -52,6 +53,14 @@ export default async function CityPage({ params }: Props) {
 
   const cityData = getCityBySlug(region, city);
   const listings = await getListingsByCity(region, city);
+  // City-merge 308: a slug retired by the 2026-07-11 city sweep permanently
+  // redirects to its canonical page — but ONLY once it has no listings (after the
+  // DB write moves the rows). Inert while the old slug still serves. Page-level,
+  // not middleware (repo bans middleware.ts; owner-auth cookie rule).
+  if (listings.length === 0) {
+    const _redir = resolveCityRedirect(`/${region}/${city}`);
+    if (_redir) permanentRedirect(_redir);
+  }
   // OR-gate: render if the pair is in CITIES OR has DB listings; else 404.
   if (!cityData && listings.length === 0) notFound();
 
