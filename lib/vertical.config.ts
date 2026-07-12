@@ -66,6 +66,7 @@ const verticalConfig = {
   // Slugs use practitioner form (Part 1.5) to match tile labels + search intent
   // ("cardiologist near me" >> "cardiology near me"). family-medicine and
   // internal-medicine keep specialty form (Option B — natural search terms).
+  showSpecialtyFilter: false, // TDL #980 — listing_type data gap; dropdown hidden until enrichment
   categoryLabels: [
     { slug: "family-medicine", label: "Family Medicine", emoji: "🩺", description: "Primary care for patients of all ages" },
     { slug: "internal-medicine", label: "Internal Medicine", emoji: "🫀", description: "Adult primary and complex chronic care" },

@@ -125,6 +125,11 @@ export default function SearchBar({
     (verticalConfig as { supportedCountries?: readonly string[] }).supportedCountries ?? ["CA"];
   const supportsUS = supportedCountries.includes("US");
 
+  // Specialty dropdown gate — hidden when the vertical has no populated
+  // listing_type sub-specialty data (TDL #980 empire-wide data gap). Defaults to shown.
+  const showSpecialtyFilter =
+    (verticalConfig as { showSpecialtyFilter?: boolean }).showSpecialtyFilter ?? true;
+
   return (
     <form onSubmit={handleSubmit} className={isHero ? "w-full max-w-3xl mx-auto" : "w-full"}>
       <div
@@ -139,6 +144,7 @@ export default function SearchBar({
           onChange={(e) => setQ(e.target.value)}
           className="flex-1 px-4 py-2 rounded-lg border border-gray-200 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
+        {showSpecialtyFilter && (
         <select
           value={type}
           onChange={(e) => setType(e.target.value)}
@@ -151,6 +157,7 @@ export default function SearchBar({
             </option>
           ))}
         </select>
+        )}
         {supportsUS && (
           <select
             value={country}
