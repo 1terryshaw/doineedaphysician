@@ -31,7 +31,15 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const listing = await getListing(slug);
+  // TDL #994: getListing throws on a DB failure now; a genuine miss still returns null.
+  // Never let a transient failure claim the listing doesn't exist.
+  let listing: Awaited<ReturnType<typeof getListing>> = null;
+  try {
+    listing = await getListing(slug);
+  } catch (e) {
+    console.error(`listing metadata failed (${slug}):`, (e as Error)?.message);
+    return {};
+  }
   if (!listing) return { title: "Not Found" };
   return {
     title: listing.name,
@@ -42,8 +50,25 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ListingPage({ params }: Props) {
   const { slug } = await params;
-  const listing = await getListing(slug);
-  if (!listing) notFound();
+  // TDL #994: a DB failure must NEVER reach notFound(). A 404 tells Google the page is GONE —
+  // stronger and slower to reverse than a noindex. Degrade honestly; only a genuine null
+  // (clean query, no such row) may 404.
+  let listing: Awaited<ReturnType<typeof getListing>>;
+  try {
+    listing = await getListing(slug);
+  } catch (e) {
+    console.error(`listing page failed (${slug}):`, (e as Error)?.message);
+    return (
+      <div className="max-w-3xl mx-auto px-4 py-16 text-center">
+        <h1 className="text-2xl font-bold mb-2">We couldn&apos;t load this listing</h1>
+        <p className="text-gray-600">
+          A temporary problem on our side — this listing has not been removed. Please
+          retry in a moment.
+        </p>
+      </div>
+    );
+  }
+  if (!listing) notFound(); // genuine: no such listing
   const { photos, logo } = await listPhotosForListing(listing.id);
   const lst = listing as typeof listing & {
     hours_json?: HoursJson | null;

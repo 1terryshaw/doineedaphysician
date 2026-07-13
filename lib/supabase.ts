@@ -319,12 +319,20 @@ export async function getListing(slug: string): Promise<Listing | null> {
     .in("country", ["CA", "US"])
     .neq("is_published", false)
     .eq("slug", slug)
-    .single();
+    .maybeSingle();
 
   if (error) {
     console.error(`Error fetching listing "${slug}" from ${LISTINGS_TABLE}:`, error);
-    return null;
+    // TDL #994: THROW, never `return null` on a DB failure. PostgREST's .single() reports
+    // zero rows AS AN ERROR (PGRST116), so `error -> null` conflated "query failed" with
+    // "listing does not exist" — and the caller turns null into notFound(). A transient
+    // statement timeout therefore served a hard 404 for a LIVE listing, telling Google the
+    // page was GONE. .maybeSingle() above gives 0 rows as {data:null,error:null}, so a
+    // genuine miss still returns null (=> 404, unchanged) and only real failures throw.
+    throw new Error(`getListing failed (${slug}): ${error.message || "unknown"}`);
   }
+
+  if (!data) return null; // genuine not-found
   return data;
 }
 
