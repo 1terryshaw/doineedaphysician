@@ -41,11 +41,17 @@ export async function POST(request: NextRequest) {
     // corporate/professional-named listings + 72h same-listing cooling-off. Allowlist first;
     // fail-open on RPC error (don't block legit owners).
     try {
-      const { data: cv } = await supabaseAdmin.rpc("abuse_claim_verdict", {
+      // TDL #1047 — K36. supabase-js RETURNS { error }; it does not throw, so this try/catch
+      // never fired on an RPC failure and a broken abuse gate was skipped with NO log. Fail-open
+      // is deliberate (don't block legit owners) — this is a VISIBILITY fix, not a policy change.
+      const { data: cv, error: cvErr } = await supabaseAdmin.rpc("abuse_claim_verdict", {
         p_email: email,
         p_listing_id: String(listing.id),
         p_listing_name: listing.name,
       });
+      if (cvErr) {
+        console.error("[abuse] claim verdict RPC failed (fail-open, gate SKIPPED):", cvErr.message);
+      }
       const verdict = cv as { blocked?: boolean; reason?: string } | null;
       if (verdict && verdict.blocked) {
         const userMessage =
@@ -116,7 +122,11 @@ export async function POST(request: NextRequest) {
     // (?src=lead&lid=<inquiryId>), log it to the shared claim_attribution table.
     if (src) {
       const cleanLid = typeof lid === "string" ? lid.replace(/^i-/, "") : null;
-      await supabaseAdmin
+      // TDL #1047 — was an EXPLICIT DISCARD (`.then(undefined, () => undefined)`), the same shape
+      // we killed on unsubscribe. NOT fail-closed: the claim itself already SUCCEEDED above, so
+      // erroring here would tell the user their claim failed when it did not. Attribution is
+      // analytics — log it loudly instead of silencing it.
+      const { error: attrErr } = await supabaseAdmin
         .from("claim_attribution")
         .insert({
           lead_id: cleanLid || null,
@@ -124,8 +134,10 @@ export async function POST(request: NextRequest) {
           listing_id: listing.id,
           src,
           slug,
-        })
-        .then(undefined, () => undefined);
+        });
+      if (attrErr) {
+        console.error(`[claim] claim_attribution insert failed for ${slug} (claim itself SUCCEEDED): ${attrErr.message}`);
+      }
     }
 
     return NextResponse.json({ success: true });

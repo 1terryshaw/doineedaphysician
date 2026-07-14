@@ -34,7 +34,25 @@ export async function GET(request: NextRequest) {
     update.is_published = true;
     update.submission_status = "verified";
   }
-  await supabaseAdmin.from(LISTINGS_TABLE).update(update).eq("id", listing.id);
+  // TDL #1047 — K36. supabase-js RETURNS { error }; it does not throw, and an UPDATE matching
+  // ZERO rows returns no error at all. This write was awaited unchecked and the auth cookie was
+  // then set and the user redirected to the owner dashboard REGARDLESS — a failed write left a
+  // half-granted state: an owner session over a listing that was never marked claimed.
+  // FAIL-CLOSED: no claim write, no session. The magic-link token stays valid and the update is
+  // idempotent (PK-keyed, deterministic), so the user can simply click the link again.
+  const { error: claimErr, count } = await supabaseAdmin
+    .from(LISTINGS_TABLE)
+    .update(update, { count: "exact" })
+    .eq("id", listing.id);
+
+  if (claimErr) {
+    console.error(`[claim/verify] claim write FAILED for ${slug}: ${claimErr.message}`);
+    return NextResponse.redirect(`${siteUrl}/claim/error`);
+  }
+  if ((count ?? 0) === 0) {
+    console.error(`[claim/verify] claim write matched 0 rows for ${slug} (id=${listing.id})`);
+    return NextResponse.redirect(`${siteUrl}/claim/error`);
+  }
 
   const response = NextResponse.redirect(`${siteUrl}/owner/${slug}`);
   setAuthCookie(response, token, slug);

@@ -86,11 +86,18 @@ export async function POST(request: NextRequest) {
   // Fail-open on RPC error: never drop a legitimate lead because the verdict check broke.
   let abuseQuarantine = false;
   try {
-    const { data: verdict } = await supabaseAdmin.rpc("abuse_inquiry_verdict", {
+    // TDL #1047 — K36. supabase-js RETURNS { error }; it does not throw, so this try/catch
+    // never fired on an RPC failure and a broken abuse gate was skipped with NO log at all.
+    // Fail-open is deliberate here (never drop a legitimate lead), so this is a VISIBILITY
+    // fix, not a policy change.
+    const { data: verdict, error: verdictErr } = await supabaseAdmin.rpc("abuse_inquiry_verdict", {
       p_email: email,
       p_ip: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || null,
       p_message: message,
     });
+    if (verdictErr) {
+      console.error("[abuse] inquiry verdict RPC failed (fail-open, gate SKIPPED):", verdictErr.message);
+    }
     abuseQuarantine = !!(verdict && (verdict as { quarantine?: boolean }).quarantine);
   } catch (e) {
     console.error("[abuse] inquiry verdict failed (fail-open):", e instanceof Error ? e.message : e);
@@ -100,7 +107,11 @@ export async function POST(request: NextRequest) {
     abuseQuarantine || isBot ? "spam_review" : fwdEmail ? "new" : "needs_bridging";
 
   // Always store one disposition row (D1: *_inquiries is the ledger; nothing lost).
-  const { data: inquiryRow } = await supabaseAdmin
+  // TDL #1047 — "nothing lost" was a LIE under failure. The error was never destructured, so a
+  // failed insert let the route carry on: it forwarded the email and returned success while
+  // the lead vanished from the ledger. FAIL-CLOSED (approved): no ledger row => no forward,
+  // and an honest retryable error.
+  const { data: inquiryRow, error: inquiryErr } = await supabaseAdmin
     .from(INQUIRIES_TABLE)
     .insert({
       listing_id: listing.id,
@@ -112,7 +123,17 @@ export async function POST(request: NextRequest) {
     })
     .select("id")
     .single();
-  const inquiryId: string | null = inquiryRow?.id ?? null;
+
+  if (inquiryErr || !inquiryRow) {
+    console.error(
+      `[forward-lead] LEAD LEDGER WRITE FAILED for ${listingSlug}: ${inquiryErr?.message ?? "no row returned"} — lead NOT forwarded`
+    );
+    return NextResponse.json(
+      { error: "We couldn't record your request just now. Please try again in a moment — nothing was sent." },
+      { status: 500 }
+    );
+  }
+  const inquiryId: string | null = inquiryRow.id ?? null;
 
   // Quarantined spam: stored, never forwarded, never notified.
   if (status === "spam_review") {
@@ -218,25 +239,48 @@ export async function POST(request: NextRequest) {
   let pitched = false;
 
   if (shouldPitch(listing) && caslReady && !(await isSuppressed(forwardTo))) {
-    const url = claimUrl({ id: listing.id, slug: listingSlug }, inquiryId, CLAIM_PATH);
-    const pitchResult = await sendClaimPitchForward({
-      to: forwardTo,
-      businessName: listing.name,
-      visitorName: name,
-      visitorEmail: email,
-      visitorPhone: phone,
-      message,
-      serviceNeeded,
-      urgency,
-      claimUrl: url,
-    });
-    if (pitchResult.success && pitchResult.pitched) {
-      pitched = true;
-      if (!pitchResult.suppressedSmoke) {
-        await supabaseAdmin
+    // TDL #1047 — `last_claim_pitch_at` is the CASL anti-spam THROTTLE that shouldPitch()
+    // reads. It was stamped AFTER the pitch was sent, unchecked: a silent failure means we
+    // re-pitch the same address on every subsequent lead, forever. It cannot be un-swallowed
+    // in place either — erroring AFTER the pitch has gone out would make the client retry and
+    // send a SECOND pitch (the Mission A idempotency lesson). So RESERVE the throttle first
+    // and only pitch if it landed: no throttle record => no pitch.
+    const { error: throttleErr } = await supabaseAdmin
+      .from(LISTINGS_TABLE)
+      .update({ last_claim_pitch_at: new Date().toISOString() })
+      .eq("id", listing.id);
+
+    if (throttleErr) {
+      console.error(
+        `[forward-lead] CASL throttle write failed for ${listingSlug}: ${throttleErr.message} — pitch SUPPRESSED (lead still forwards below)`
+      );
+    } else {
+      const url = claimUrl({ id: listing.id, slug: listingSlug }, inquiryId, CLAIM_PATH);
+      const pitchResult = await sendClaimPitchForward({
+        to: forwardTo,
+        businessName: listing.name,
+        visitorName: name,
+        visitorEmail: email,
+        visitorPhone: phone,
+        message,
+        serviceNeeded,
+        urgency,
+        claimUrl: url,
+      });
+      if (pitchResult.success && pitchResult.pitched) {
+        pitched = true;
+      }
+      if (pitchResult.suppressedSmoke) {
+        // Smoke suppressed the real send — release the reservation.
+        const { error: releaseErr } = await supabaseAdmin
           .from(LISTINGS_TABLE)
-          .update({ last_claim_pitch_at: new Date().toISOString() })
+          .update({ last_claim_pitch_at: listing.last_claim_pitch_at })
           .eq("id", listing.id);
+        if (releaseErr) {
+          console.error(
+            `[forward-lead] failed to release CASL throttle for ${listingSlug}: ${releaseErr.message}`
+          );
+        }
       }
     }
   }
