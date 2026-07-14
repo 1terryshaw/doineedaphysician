@@ -5,6 +5,7 @@ import { SITE_URL, organizationSchema } from "@/lib/seo";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import EmergencyBanner from "@/components/EmergencyBanner";
+import AnalyticsTracker from "@/components/AnalyticsTracker";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -40,6 +41,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="min-h-screen flex flex-col font-sans">
+        <AnalyticsTracker />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema()) }}
