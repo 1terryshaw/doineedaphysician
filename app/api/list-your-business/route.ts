@@ -96,7 +96,23 @@ export async function POST(req: NextRequest) {
 
   if (matched) {
     if (!matched.claimed) {
-      await supabaseAdmin.from(LISTINGS_TABLE).update({ owner_auth_token: token, owner_auth_token_expires_at: expiresAt, owner_email: email, submitted_by_email: email }).eq("id", matched.id);
+      // TDL #1059 — FAIL CLOSED BEFORE THE SEND (see the header note on this route).
+      const { error: bindErr2, count: bindRows2 } = await supabaseAdmin
+        .from(LISTINGS_TABLE)
+        .update(
+          { owner_auth_token: token, owner_auth_token_expires_at: expiresAt, owner_email: email, submitted_by_email: email },
+          { count: "exact" }
+        )
+        .eq("id", matched.id);
+      if (bindErr2 || (bindRows2 ?? 0) === 0) {
+        console.error(
+          `[list-your-business] token bind FAILED for ${matched.slug}: ${bindErr2?.message ?? "0 rows"} — no email sent`
+        );
+        return NextResponse.json(
+          { error: "We couldn't start the verification just now. Please try again in a moment — no email was sent." },
+          { status: 500 }
+        );
+      }
       const sent = await sendClaimEmail(email, matched.slug, token);
       if (!sent.ok) return NextResponse.json({ error: "Could not send the verification email. Please try again." }, { status: 502 });
     } else { console.log("[list-your-business] dedup hit on already-claimed listing", matched.slug, "— no re-bind"); }
