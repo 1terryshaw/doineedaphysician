@@ -2,14 +2,23 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin, LISTINGS_TABLE } from "../../../lib/supabase";
 import { suppressEmail } from "@/lib/suppression";
 
-// Dual-mode unsubscribe endpoint. One source of truth — stamped into every
-// empire directory by gmail-triage/loop-fix-unsub.sh. Two unrelated unsubscribe
-// flows historically collided on this path; this route handles both by the
-// params present:
-//   ?token=&email=   cold-outreach unsubscribe  -> outreach_unsubscribed = true
-//   ?slug=&token=    owner-notification unsub   -> owner_email cleared
-//   ?email=&scope=pitch  claim-pitch (TDL #472) -> public.email_suppressions insert
-// See gmail-triage/unsub-audit-results-2026-05-21.md.
+// Unsubscribe endpoint. One source of truth — stamped into every empire directory.
+// Handles the two COMMERCIAL flows, both backed by the central public.email_suppressions list:
+//   ?email=&scope=pitch   claim-pitch unsubscribe   -> email_suppressions (+ row mirror)
+//   ?token=&email=        cold-outreach unsubscribe -> email_suppressions (+ row mirror)
+//
+// TDL #1057 — a third branch (`?slug=&token=` -> `owner_email = null`, "owner-notification
+// unsubscribe") was DELETED here. Do not reintroduce it. It was a no-op that returned 200:
+// the inquiry send path resolves its destination via effectiveForwardEmail() (lib/inquiry-guard),
+// which FALLS BACK TO THE SCRAPED `email` COLUMN when owner_email is null — so clearing
+// owner_email stopped nothing, and we kept emailing the address. `owner_email = null` is also
+// the DEFAULT state of every unclaimed listing, so the write carried no information at all.
+// It was also unreachable: no code, template, or script in the empire has ever emitted that URL.
+// Nulling owner_email additionally destroyed the owner's magic-link login address.
+//
+// An owner-facing notification opt-out, if we ever want one, needs a dedicated flag that the
+// send path checks BEFORE resolving the fallback — plus a link in the notification email.
+// That is an open PRODUCT question, not a bug fix.
 
 export const dynamic = "force-dynamic";
 
@@ -85,7 +94,6 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const token = searchParams.get("token");
   const email = searchParams.get("email");
-  const slug = searchParams.get("slug");
   const scope = searchParams.get("scope");
 
   // Claim-pitch unsubscribe (TDL #472): ?email=u-<addr>&scope=pitch -> email_suppressions
@@ -124,27 +132,6 @@ export async function GET(request: NextRequest) {
       "You have been unsubscribed",
       "<p>You will not receive any more emails from us about this listing.</p>" +
         "<p>If this was a mistake, reply to terry@marketingteaminabox.com</p>",
-      200
-    );
-  }
-
-  // Owner-notification unsubscribe: ?slug=&token=  ->  owner_email cleared
-  if (token && slug) {
-    const { data: listing, error } = await supabaseAdmin
-      .from(LISTINGS_TABLE)
-      .select("id, owner_auth_token")
-      .eq("slug", slug)
-      .single();
-    if (error || !listing || listing.owner_auth_token !== token) {
-      return page("Invalid unsubscribe link", "<p>This link is no longer valid.</p>", 403);
-    }
-    await supabaseAdmin
-      .from(LISTINGS_TABLE)
-      .update({ owner_email: null })
-      .eq("id", listing.id);
-    return page(
-      "Unsubscribed",
-      "<p>You will no longer receive inquiry notifications for this listing.</p>",
       200
     );
   }
