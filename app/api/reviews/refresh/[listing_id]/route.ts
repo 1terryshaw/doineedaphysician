@@ -218,11 +218,13 @@ export async function POST(
     return NextResponse.json({ error: "GOOGLE_PLACES_API_KEY not set" }, { status: 500 });
   }
 
+  // select("*") on purpose: the resolver reads name/address/city/province_state/region_slug/gbp_url,
+  // and those columns are NOT uniform across the 60+ listings tables (unitedstatesforyou_listings
+  // has no gbp_url). An enumerated select errors in PostgREST on any table missing one column,
+  // which surfaces as fetchErr -> a 404 on EVERY request. Schema-resilient by design.
   const { data: listing, error: fetchErr } = await supabaseAdmin
     .from(LISTINGS_TABLE)
-    .select(
-      "id, slug, google_place_id, tier, subscription_tier, name, address, city, province_state, region_slug, gbp_url"
-    )
+    .select("*")
     .eq("id", listing_id)
     .maybeSingle();
 
