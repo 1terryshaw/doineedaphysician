@@ -73,6 +73,7 @@ async function renderSitemap(
       .from("physician_listings")
       .select("province_state, region_slug")
       .eq("country", "CA")
+      .neq("is_published", false)
       .not("province_state", "is", null)
       .not("region_slug", "is", null)
       .limit(1000000);
