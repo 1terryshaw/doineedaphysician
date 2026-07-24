@@ -19,6 +19,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { supabaseAdmin, LISTINGS_TABLE } from "@/lib/supabase";
 import { verifyOwnerAccess } from "@/lib/auth";
+import { normalizeGbpUrl } from "@/lib/gbp-url";
 import verticalConfig from "@/lib/vertical.config";
 import { can } from "@/lib/tier-capabilities";
 
@@ -89,6 +90,9 @@ type Outcome =
   | "refused_not_authorized"
   | "refused_not_entitled"
   | "refused_no_place_id"
+  | "resolved_gbp"
+  | "resolved_search"
+  | "refused_unresolved"
   | "refused_rate_limited"
   | "error_places"
   | "error_api_key_invalid"
@@ -104,6 +108,71 @@ function isApiKeyDead(status: number, body: string): boolean {
     status === 400 &&
     /API_KEY_INVALID|API[_ ]?KEY[_ ]?(EXPIRED|INVALID)|API key (expired|not valid)|keyInvalid|keyExpired/i.test(body)
   );
+}
+
+/**
+ * On-demand place_id resolution (owner-triggered, conservative). Ported from the
+ * doineedanelectrician carve-out, with the stopword list generalized off "electric/solar"
+ * to generic business tokens. When a paid listing has no google_place_id, resolve one from
+ * the owner's stored GBP url (exact ChIJ) or from stored name+address+city (Text Search).
+ * The matcher requires BOTH a distinctive name token AND the city to appear in the
+ * candidate — it errs toward false-misses ON PURPOSE. A wrong-business mis-link is worse
+ * than no reviews, so a non-confident candidate is discarded (never guessed).
+ */
+const NAME_STOPWORDS = new Set([
+  "the", "and", "llc", "inc", "ltd", "co", "corp", "company", "services", "service",
+  "solutions", "group", "dba", "clinic", "center", "centre", "studio", "shop", "store",
+]);
+function normName(s: string): string {
+  return (s || "").toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+}
+function isConfidentMatch(
+  cand: { displayName?: { text?: string }; formattedAddress?: string },
+  listing: { name?: string | null; city?: string | null }
+): boolean {
+  const candName = normName(cand.displayName?.text ?? "");
+  const candAddr = (cand.formattedAddress ?? "").toLowerCase();
+  const distinctive = normName(listing.name ?? "")
+    .split(" ")
+    .filter((t) => t.length >= 4 && !NAME_STOPWORDS.has(t))[0];
+  const nameMatch = !!distinctive && candName.includes(distinctive);
+  const city = (listing.city ?? "").toLowerCase().trim();
+  const cityMatch = !!city && candAddr.includes(city);
+  return nameMatch && cityMatch;
+}
+async function resolveViaTextSearch(
+  listing: {
+    name?: string | null;
+    address?: string | null;
+    city?: string | null;
+    province_state?: string | null;
+    region_slug?: string | null;
+  },
+  apiKey: string
+): Promise<string | null> {
+  const region = listing.province_state || listing.region_slug || "";
+  const textQuery = [listing.name, listing.address, listing.city, region].filter(Boolean).join(" ");
+  if (!textQuery.trim()) return null;
+  try {
+    const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": apiKey,
+        "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress",
+      },
+      body: JSON.stringify({ textQuery }),
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    const data: {
+      places?: Array<{ id: string; displayName?: { text?: string }; formattedAddress?: string }>;
+    } = await res.json();
+    const c = (data.places || [])[0];
+    return c && isConfidentMatch(c, listing) ? c.id : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -151,7 +220,9 @@ export async function POST(
 
   const { data: listing, error: fetchErr } = await supabaseAdmin
     .from(LISTINGS_TABLE)
-    .select("id, slug, google_place_id, tier, subscription_tier")
+    .select(
+      "id, slug, google_place_id, tier, subscription_tier, name, address, city, province_state, region_slug, gbp_url"
+    )
     .eq("id", listing_id)
     .maybeSingle();
 
@@ -197,25 +268,76 @@ export async function POST(
     );
   }
 
-  // NO PLACE ID — refused loudly. NEVER a Places search to resolve it (that is discovery, banned).
+  // NO PLACE ID — RESOLVE it (owner-triggered, on the paid path). Order: the owner's stored
+  // GBP url (exact ChIJ) first, then stored name+address+city via Text Search (conservative:
+  // name AND city must match, else discarded). On a confident match, PERSIST it to the row so
+  // the next refresh + the display path reuse it, then proceed. On no match, fall through to the
+  // GBP-url path (422 — the owner pastes their profile link). Never guesses.
   if (!listing.google_place_id) {
+    let resolvedId = "";
+    let via: "gbp" | "search" | "" = "";
+
+    if (listing.gbp_url) {
+      const g = await normalizeGbpUrl(listing.gbp_url as string);
+      if (g.ok && g.gbp_place_id && /^ChIJ/i.test(g.gbp_place_id)) {
+        resolvedId = g.gbp_place_id;
+        via = "gbp";
+      }
+    }
+    if (!resolvedId) {
+      const cand = await resolveViaTextSearch(
+        listing as {
+          name?: string | null;
+          address?: string | null;
+          city?: string | null;
+          province_state?: string | null;
+          region_slug?: string | null;
+        },
+        apiKey
+      );
+      if (cand) {
+        resolvedId = cand;
+        via = "search";
+      }
+    }
+
+    if (!resolvedId) {
+      await audit({
+        listing_id: listing.id as string,
+        listing_slug: listing.slug as string,
+        place_id: null,
+        outcome: "refused_unresolved",
+        caller,
+        // reaching here means the GBP url didn't yield a ChIJ, so a Text Search WAS billed.
+        places_called: true,
+        detail: "no confident Places match; owner must supply a Google Business Profile link",
+      });
+      return NextResponse.json(
+        {
+          error: "We couldn't match your business on Google. Add your Google Business Profile link and try again.",
+          outcome: "refused_unresolved",
+          needs_gbp_url: true,
+        },
+        { status: 422 }
+      );
+    }
+
+    // Persist the resolved id so refresh #2 and the leaf's ReviewShowcase reuse it.
+    await supabaseAdmin
+      .from(LISTINGS_TABLE)
+      .update({ google_place_id: resolvedId })
+      .eq("id", listing.id as string);
+    (listing as { google_place_id: string }).google_place_id = resolvedId;
+
     await audit({
       listing_id: listing.id as string,
       listing_slug: listing.slug as string,
-      place_id: null,
-      outcome: "refused_no_place_id",
+      place_id: resolvedId,
+      outcome: via === "gbp" ? "resolved_gbp" : "resolved_search",
       caller,
-      places_called: false,
-      detail: "entitled but no google_place_id — owner supplies a GBP link; no Places search permitted",
+      places_called: via === "search",
+      detail: `resolved google_place_id via ${via}`,
     });
-    return NextResponse.json(
-      {
-        error: "Listing has no google_place_id",
-        outcome: "refused_no_place_id",
-        remedy: "Owner must supply a Google Business Profile link.",
-      },
-      { status: 400 }
-    );
   }
 
   // 24h anti-hammer, keyed on the place_id actually being billed.
