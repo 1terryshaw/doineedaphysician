@@ -108,6 +108,26 @@ export default async function ListingPage({ params }: Props) {
     ? listing.subscription_tier.charAt(0).toUpperCase() + listing.subscription_tier.slice(1)
     : null;
 
+  // Geo coordinates + precision (numeric in DB; PostgREST may return strings).
+  // TDL #849 street-level gate: emit GeoCoordinates JSON-LD ONLY for rooftop-precise
+  // rows (geo_precision_m <= 50, Census addressbatch Exact). Centroid (4000/8000) and
+  // interpolation-grade (150) rows emit the JSON-LD unchanged, with no geo block.
+  const geoRaw = listing as typeof listing & {
+    latitude?: number | string | null;
+    longitude?: number | string | null;
+    geo_precision_m?: number | null;
+  };
+  const geoLat =
+    geoRaw.latitude != null && geoRaw.latitude !== "" ? Number(geoRaw.latitude) : NaN;
+  const geoLng =
+    geoRaw.longitude != null && geoRaw.longitude !== "" ? Number(geoRaw.longitude) : NaN;
+  const geoEligible =
+    geoRaw.geo_precision_m != null &&
+    geoRaw.geo_precision_m <= 50 &&
+    Number.isFinite(geoLat) &&
+    Number.isFinite(geoLng) &&
+    !(geoLat === 0 && geoLng === 0);
+
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": ["Physician", "MedicalBusiness"],
@@ -121,6 +141,9 @@ export default async function ListingPage({ params }: Props) {
       addressRegion: listing.province_state,
       addressCountry: listing.country || "CA",
     },
+    ...(geoEligible && {
+      geo: { "@type": "GeoCoordinates", latitude: geoLat, longitude: geoLng },
+    }),
     ...(listing.google_rating && {
       aggregateRating: {
         "@type": "AggregateRating",
