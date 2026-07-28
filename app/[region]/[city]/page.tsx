@@ -61,8 +61,11 @@ export default async function CityPage({ params }: Props) {
     const _redir = resolveCityRedirect(`/${region}/${city}`);
     if (_redir) permanentRedirect(_redir);
   }
-  // OR-gate: render if the pair is in CITIES OR has DB listings; else 404.
-  if (!cityData && listings.length === 0) notFound();
+  // Strict gate (matches 9aee83e dentist / 19db8f9 hvac / db962b6 obgyn): the OR-gate
+  // was `!cityData && listings.length === 0`, but getCityBySlug can synthesize a truthy
+  // entry for an arbitrary slug, so an empty page rendered an indexable soft-200 shell.
+  // Zero published listings now 404s regardless of CITIES membership (no soft-200 shell).
+  if (listings.length === 0) notFound();
 
   const cityName = cityData?.name ?? deriveCityName(region, city, listings[0]?.city);
   const provinceName = PROVINCES[region.toUpperCase()] ?? region;
