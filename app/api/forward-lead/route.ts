@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin, LISTINGS_TABLE, INQUIRIES_TABLE } from "@/lib/supabase";
 import { sendInquiryNotification } from "@/lib/email";
 import { sendLeadForwardEmail, sendInquiryConfirmation, sendClaimPitchForward } from "@/lib/resend";
-import { sendLeadForwardSMS } from "@/lib/twilio";
 import { can } from "@/lib/tier-capabilities";
 import verticalConfig from "@/lib/vertical.config";
 import {
@@ -156,7 +155,7 @@ export async function POST(request: NextRequest) {
 
   // ── LEAD BOOST+ PATH: forward via Resend + Twilio ──────────────────
   if (can(tier, "lead_forwarding")) {
-    const [emailResult, smsResult] = await Promise.allSettled([
+    const [emailResult] = await Promise.allSettled([
       sendLeadForwardEmail({
         businessName: listing.name,
         businessEmail: forwardTo,
@@ -167,9 +166,6 @@ export async function POST(request: NextRequest) {
         serviceNeeded,
         urgency,
       }),
-      businessPhone
-        ? sendLeadForwardSMS(businessPhone, name, listing.name)
-        : Promise.resolve({ success: false, error: "no_phone" }),
       // Branded confirmation to the prospect — best-effort, never blocks the lead.
       sendInquiryConfirmation({
         businessName: listing.name,
@@ -185,12 +181,9 @@ export async function POST(request: NextRequest) {
 
     const emailOk =
       emailResult.status === "fulfilled" && emailResult.value.success;
-    const smsOk = smsResult.status === "fulfilled" && smsResult.value.success;
 
     let deliveryStatus: string;
-    if (emailOk && smsOk) deliveryStatus = "both_sent";
-    else if (emailOk) deliveryStatus = "email_sent";
-    else if (smsOk) deliveryStatus = "sms_sent";
+    if (emailOk) deliveryStatus = "email_sent";
     else deliveryStatus = "failed";
 
     // leads_forwarded = delivery ledger (D1: disposition already stored above).
@@ -213,7 +206,6 @@ export async function POST(request: NextRequest) {
         visitor_ip: visitorIp,
         visitor_user_agent: visitorUserAgent,
         email_forwarded_at: emailOk ? new Date().toISOString() : null,
-        sms_forwarded_at: smsOk ? new Date().toISOString() : null,
         delivery_status: deliveryStatus,
       })
       .select("id")
