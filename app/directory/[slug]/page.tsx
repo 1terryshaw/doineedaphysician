@@ -21,6 +21,12 @@ import { canonical } from "@/lib/vertical-canonical";
 import ListingGallery from "@/components/ListingGallery";
 import TierBadge from "@/components/TierBadge";
 import ReviewShowcase from "@/components/ReviewShowcase";
+import FaqSection from "@/components/FaqSection";
+import { detailBreadcrumbSchema, localizeFaqs, OG_DEFAULT_IMAGE } from "@/lib/seo";
+import { getRegionBySlug } from "@/lib/constants";
+
+const MEDICAL_DISCLAIMER =
+  "The information here is for educational purposes only and is not medical advice. Consult a licensed healthcare provider about your specific situation.";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -45,6 +51,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title: listing.name,
     description: listing.short_description || listing.description,
     alternates: { canonical: `/directory/${slug}` },
+    openGraph: { images: [OG_DEFAULT_IMAGE] },
   };
 }
 
@@ -171,11 +178,31 @@ export default async function ListingPage({ params }: Props) {
     ...(sameAsLinks.length > 0 && { sameAs: sameAsLinks }),
 };
 
+  // BreadcrumbList JSON-LD (SEPARATE block — the Physician/MedicalBusiness object
+  // above is untouched). City-only-root: trail is Home → /{citySlug} hub → business,
+  // where the city crumb is included only when the listing's city resolves to a
+  // configured city hub (getRegionBySlug) so the emitted URL always 200s; otherwise
+  // Home → business.
+  const bcCitySlug = (listing.city || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  const bcRegion = bcCitySlug ? getRegionBySlug(bcCitySlug) : null;
+  const breadcrumbTrail: Array<{ name: string; path: string }> = [
+    { name: "Home", path: "/" },
+  ];
+  if (bcRegion) {
+    breadcrumbTrail.push({ name: bcRegion.name, path: `/${bcRegion.slug}` });
+  }
+  breadcrumbTrail.push({ name: listing.name, path: `/directory/${listing.slug}` });
+  const breadcrumbLd = detailBreadcrumbSchema(breadcrumbTrail);
+
   return (
     <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }}
       />
       <div className="max-w-5xl mx-auto px-4 py-12">
         <Link
@@ -441,6 +468,13 @@ export default async function ListingPage({ params }: Props) {
           {verticalConfig.triageDisclaimer}
         </p>
       </div>
+      {/* FAQ — visible accordion + FAQPage ld+json (sibling block; Physician +
+          BreadcrumbList above untouched). Medical disclaimer above accordion.
+          Question localized to the listing's city; answers verbatim from config. */}
+      <FaqSection
+        faqs={localizeFaqs(verticalConfig.faqs, listing.city)}
+        disclaimer={MEDICAL_DISCLAIMER}
+      />
       <UpgradeModal
         listingSlug={listing.slug}
         priceIds={{

@@ -5,7 +5,11 @@ import { getListingsByProvincePaged, getRegionTotal, REGION_PAGE_SIZE } from "@/
 import ListingCard from "@/components/ListingCard";
 import Pagination from "@/components/Pagination";
 import ShareButtons from "@/components/pizzazz/ShareButtons";
-import { regionBreadcrumbSchema, regionCollectionPageSchema } from "@/lib/seo";
+import { regionBreadcrumbSchema, regionCollectionPageSchema, localizeFaqs } from "@/lib/seo";
+import FaqSection from "@/components/FaqSection";
+
+const MEDICAL_DISCLAIMER =
+  "The information here is for educational purposes only and is not medical advice. Consult a licensed healthcare provider about your specific situation.";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -86,6 +90,13 @@ export default async function RegionPage({ params, searchParams }: Props) {
       <p className="text-xs text-gray-400 mt-12 text-center leading-relaxed">
         {verticalConfig.triageDisclaimer}
       </p>
+
+      {/* City-only-root: this /[region] route IS the /{city} hub (region param = city
+          slug). FAQ localized to the city name; medical disclaimer above accordion. */}
+      <FaqSection
+        faqs={localizeFaqs(verticalConfig.faqs, regionData.label)}
+        disclaimer={MEDICAL_DISCLAIMER}
+      />
     </div>
   );
 }
