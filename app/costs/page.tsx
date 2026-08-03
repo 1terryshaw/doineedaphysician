@@ -37,6 +37,9 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: TITLE,
     description: DESCRIPTION,
+    // Empty cost estimator (no seeded cost_models rows) → noindex the thin page
+    // until content is seeded. Route retained; reversible. Costs-audit 2026-08-03.
+    robots: { index: false },
     alternates: { canonical: PAGE_PATH },
     openGraph: {
       title: TITLE,
