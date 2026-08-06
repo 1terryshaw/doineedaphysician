@@ -5,15 +5,17 @@ interface TierBadgeProps {
   tier?: string;
   subscription_tier?: string;
   is_claimed?: boolean;
-  gbp_url?: string | null;
+  // "Reviews verified" keys on whether the Google rating/reviews ACTUALLY display on
+  // the listing — i.e. the same `google_rating` gate the detail page uses to render
+  // the star rating + review count. NOT gbp_url presence (a linked profile with no
+  // rating shows nothing, so calling it "verified" would be dishonest).
+  google_rating?: number | string | null;
 }
 
 const BASE = "text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap";
 
-// Honest two-tier claim badges. "Verified" means the owner confirmed by email AND
-// linked a Google Business Profile — NOT that we independently checked Google.
-const VERIFIED_TOOLTIP =
-  "Verified: the owner confirmed this listing by email and added their Google Business Profile link. It does not mean we independently checked the business with Google.";
+const REVIEWS_VERIFIED_TOOLTIP =
+  "Reviews verified: this listing's Google rating and review count are shown here. It does not mean we independently checked or endorsed the business.";
 const CLAIMED_TOOLTIP =
   "Claimed: the business owner confirmed this listing by email.";
 
@@ -21,7 +23,7 @@ export default function TierBadge({
   tier,
   subscription_tier,
   is_claimed,
-  gbp_url,
+  google_rating,
 }: TierBadgeProps) {
   // TDL #471: the premium/Featured badge renders ONLY when the listing's LIVE
   // subscription grants the "featured" entitlement (Reviews Plus or higher) — keyed off
@@ -46,11 +48,12 @@ export default function TierBadge({
   }
 
   if (is_claimed) {
-    const hasGbp = typeof gbp_url === "string" && gbp_url.trim().length > 0;
-    if (hasGbp) {
+    // Reviews actually display <=> the detail-page rating line renders (google_rating > 0).
+    const reviewsDisplay = Number(google_rating) > 0;
+    if (reviewsDisplay) {
       return (
-        <span className={`${BASE} bg-green-100 text-green-800`} title={VERIFIED_TOOLTIP}>
-          ✓ Verified
+        <span className={`${BASE} bg-green-100 text-green-800`} title={REVIEWS_VERIFIED_TOOLTIP}>
+          ✓ Reviews verified
         </span>
       );
     }

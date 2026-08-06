@@ -3,6 +3,7 @@ import { supabaseAdmin, LISTINGS_TABLE } from "@/lib/supabase";
 import { generateToken } from "@/lib/auth";
 import { sendClaimEmail, sendAddBusinessEmail } from "@/lib/email";
 import { normalizeGbpUrl } from "@/lib/gbp-url";
+import { normalizeWebsiteUrl } from "@/lib/url-normalize";
 
 export const dynamic = "force-dynamic";
 
@@ -49,10 +50,12 @@ export async function POST(req: NextRequest) {
   const city = (body.city || "").trim();
   const province = (body.province || "").trim().toUpperCase();
   const country = (body.country || "").trim().toUpperCase();
-  const website = (body.website || "").trim();
+  const websiteNorm = normalizeWebsiteUrl(body.website || "");
+  const website = websiteNorm.url; // normalized https URL, or null
   const gbp_raw = (body.gbp_url || "").trim();
 
   if (!business_name || !email || !phone || !city || !province || !country || !gbp_raw) return NextResponse.json({ error: "Please fill in all required fields." }, { status: 400 });
+  if (!websiteNorm.ok) return NextResponse.json({ error: "Please enter a valid website (e.g. www.yourbusiness.com) or leave it blank." }, { status: 400 });
   if (!VALID_COUNTRIES.has(country)) return NextResponse.json({ error: "Please choose a valid country." }, { status: 400 });
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return NextResponse.json({ error: "Please enter a valid email address." }, { status: 400 });
 

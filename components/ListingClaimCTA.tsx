@@ -7,16 +7,15 @@ import { useOwnerAuth } from "@/lib/useOwnerAuth";
 interface Props {
   listingSlug: string;
   listingClaimed: boolean;
-  listingOwnerEmail?: string;
 }
 
-export default function ListingClaimCTA({ listingSlug, listingClaimed, listingOwnerEmail }: Props) {
-  const { authenticated, slug, ownerEmail, loading } = useOwnerAuth();
+export default function ListingClaimCTA({ listingSlug, listingClaimed }: Props) {
+  const { authenticated, slug, loading } = useOwnerAuth({ context: true, listingSlug });
 
   if (loading) return null;
 
   // Logged in and this is their listing
-  if (authenticated && (slug === listingSlug || (ownerEmail && ownerEmail === listingOwnerEmail))) {
+  if (authenticated && slug === listingSlug) {
     return (
       <div className="mt-8 bg-green-50 border border-green-200 rounded-lg p-6">
         <p className="font-semibold text-green-800">This is your listing</p>

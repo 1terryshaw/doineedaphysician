@@ -36,7 +36,7 @@ export default function AddBusinessForm() {
         <div><label className={labelClass} htmlFor="province">State / province {req}</label><select id="province" required value={form.province} disabled={!form.country} onChange={(e) => set("province", e.target.value)} className={inputClass}><option value="" disabled>Select…</option>{regionOptions.map((r) => (<option key={r.code} value={r.code}>{r.name}</option>))}</select></div>
       </div>
       <div><label className={labelClass} htmlFor="city">City {req}</label><input id="city" type="text" required value={form.city} onChange={(e) => set("city", e.target.value)} className={inputClass} /></div>
-      <div><label className={labelClass} htmlFor="website">Website URL <span className="text-gray-400">(optional)</span></label><input id="website" type="url" placeholder="https://" value={form.website} onChange={(e) => set("website", e.target.value)} className={inputClass} /></div>
+      <div><label className={labelClass} htmlFor="website">Website URL <span className="text-gray-400">(optional)</span></label><input id="website" type="text" inputMode="url" placeholder="www.yourbusiness.com" value={form.website} onChange={(e) => set("website", e.target.value)} className={inputClass} /></div>
       {status === "error" && <p className="text-red-600 text-sm" role="alert">{errorMsg}</p>}
       <button type="submit" disabled={status === "sending"} style={{ backgroundColor: verticalConfig.primaryColor }} className="w-full px-4 py-2.5 rounded-lg text-white text-sm font-semibold disabled:opacity-50">{status === "sending" ? "Submitting…" : "Add my business"}</button>
     </form>

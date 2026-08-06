@@ -5,3 +5,4 @@ node_modules/
 
 # TDL #684 hygiene — TS incremental build cache
 tsconfig.tsbuildinfo
+.env*.local

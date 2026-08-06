@@ -6,6 +6,9 @@ import { getListing } from "@/lib/supabase";
 import verticalConfig from "@/lib/vertical.config";
 import InquiryForm from "@/components/InquiryForm";
 import ListingClaimCTA from "@/components/ListingClaimCTA";
+import ClaimUnlockPreview from "@/components/ClaimUnlockPreview";
+import PublicGbpClaimSidecar from "@/components/PublicGbpClaimSidecar";
+import { normalizeTierForPricing } from "@/lib/pricing-canonical";
 import UpgradeModal from "@/components/UpgradeModal";
 import { can } from "@/lib/tier-capabilities";
 import ShareButtons from "@/components/pizzazz/ShareButtons";
@@ -245,13 +248,16 @@ export default async function ListingPage({ params }: Props) {
               <TierBadge
                 tier={listing.tier}
                 subscription_tier={listing.subscription_tier}
-                is_claimed={listing.claimed} gbp_url={(listing as { gbp_url?: string | null }).gbp_url}
+                is_claimed={listing.claimed} google_rating={listing.google_rating}
               />
               {listing.now_hiring && (
                 <span className="bg-green-600 text-white text-xs font-medium px-2 py-0.5 rounded-full ml-2">Now Hiring</span>
               )}
               </div>
             </div>
+            <p className="text-xs text-gray-400 mb-4">
+              We don&apos;t vet or endorse listed businesses.
+            </p>
 
             {/* Specialty badge */}
             {specialtyLabel && (
@@ -416,12 +422,27 @@ export default async function ListingPage({ params }: Props) {
               <ShareButtons title={listing.name} variant="full" />
             </div>
 
-            {/* Claim CTA */}
-            <><ListingClaimCTA
+            {/* Claim CTA — UNCLAIMED: server-rendered unlock-preview (visible JS-off,
+                no client auth hook). CLAIMED: keep ListingClaimCTA for the owner's
+                "Edit My Listing" affordance (anon sees nothing on claimed pages). */}
+            <>{listing.claimed ? (
+              <ListingClaimCTA
+                listingSlug={listing.slug}
+                listingClaimed={listing.claimed}
+              />
+            ) : (
+              <ClaimUnlockPreview
+                listingSlug={listing.slug}
+                hasReviews={Number(listing.google_review_count) > 0}
+              />
+            )}
+            <p className="mt-4 text-sm text-gray-500">Run a different physician{listing.city ? ` in ${listing.city}` : ""}? <Link href="/list-your-business" className="underline" style={{ color: verticalConfig.primaryColor }}>Add your business &rarr;</Link></p></>
+            <PublicGbpClaimSidecar
               listingSlug={listing.slug}
+              listingName={listing.name}
+              address={[(lst as { address?: string | null }).address, listing.city, listing.province_state, (lst as { postal_code?: string | null }).postal_code, listing.country].filter(Boolean).join(", ")}
               listingClaimed={listing.claimed}
             />
-            <p className="mt-4 text-sm text-gray-500">Run a different physician{listing.city ? ` in ${listing.city}` : ""}? <Link href="/list-your-business" className="underline" style={{ color: verticalConfig.primaryColor }}>Add your business &rarr;</Link></p></>
           </div>
 
           {/* Sidebar */}
@@ -485,11 +506,7 @@ export default async function ListingPage({ params }: Props) {
           growth_monthly: process.env.STRIPE_PRICE_GROWTH_MONTHLY || "",
           growth_annual: process.env.STRIPE_PRICE_GROWTH_ANNUAL || "",
         }}
-        currentTier={
-          listing.tier === 'reviews_plus' || listing.tier === 'website' || listing.tier === 'growth'
-            ? listing.tier
-            : null
-        }
+        currentTier={normalizeTierForPricing(listing.tier as string | null, listing.claimed)}
         currentCycle={null}
       />
     </>
