@@ -395,7 +395,8 @@ export async function sendAddBusinessEmail(email: string, slug: string, token: s
     const { data, error } = await resend.emails.send({
       from: AUTH_FROM, to: email,
       subject: `Verify your ${verticalConfig.name} listing — magic link inside`,
-      html: `<h2>Verify your ${verticalConfig.name} listing</h2><p>Thanks for adding <strong>${name}</strong> to ${verticalConfig.name}. Click below to verify your email and finish your listing. The link expires in 24 hours.</p><p><a href="${verifyLink}" style="display:inline-block;padding:12px 24px;background:${verticalConfig.primaryColor};color:white;text-decoration:none;border-radius:6px;">Verify and continue</a></p><p>Or copy this link: ${verifyLink}</p><p style="color:#666;font-size:12px;">If you didn't request this, you can safely ignore this email.</p>`,
+      text: `Verify your ${verticalConfig.name} listing\n\nThanks for adding ${name} to ${verticalConfig.name}. Open this link to verify your email and finish your listing (expires in 24 hours):\n${verifyLink}\n\nIf you didn't request this, you can safely ignore this email.`,
+      html: `<h2>Verify your ${verticalConfig.name} listing</h2><p>Thanks for adding <strong>${name}</strong> to ${verticalConfig.name}. Click below to verify your email and finish your listing. The link expires in 24 hours.</p><p><a href="${verifyLink}" style="display:inline-block;padding:12px 24px;background:${verticalConfig.primaryColor};color:white;text-decoration:none;border-radius:6px;">Verify and continue</a></p><p style="color:#666;font-size:12px;">If you didn't request this, you can safely ignore this email.</p>`,
     });
     if (error) return { ok: false, error: error.message };
     return { ok: true, id: data?.id ?? "" };
