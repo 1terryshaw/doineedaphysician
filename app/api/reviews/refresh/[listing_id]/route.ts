@@ -166,16 +166,14 @@ function haversineMeters(aLat: number, aLng: number, bLat: number, bLng: number)
     Math.sin(dLat / 2) ** 2 + Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(x));
 }
-/** The strongest (longest) ≥4-char, non-stopword token of the query name; keep the raw form for the acronym test. */
-function distinctiveToken(rawName: string): { norm: string | null; raw: string | null } {
-  let best: { norm: string; raw: string } | null = null;
+/** All ≥4-char, non-stopword tokens of the query name (normalized + raw form for the acronym test). */
+function distinctiveTokens(rawName: string): Array<{ norm: string; raw: string }> {
+  const out: Array<{ norm: string; raw: string }> = [];
   for (const w of (rawName || "").split(/\s+/)) {
     const n = normName(w);
-    if (n.length >= 4 && !NAME_STOPWORDS.has(n) && (!best || n.length > best.norm.length)) {
-      best = { norm: n, raw: w.replace(/[^A-Za-z0-9]/g, "") };
-    }
+    if (n.length >= 4 && !NAME_STOPWORDS.has(n)) out.push({ norm: n, raw: w.replace(/[^A-Za-z0-9]/g, "") });
   }
-  return best ? { norm: best.norm, raw: best.raw } : { norm: null, raw: null };
+  return out;
 }
 
 /**
@@ -194,18 +192,22 @@ function isConfidentMatch(
   const candName = normName(cand.displayName?.text ?? "");
   const candAddr = (cand.formattedAddress ?? "").toLowerCase();
   const rawName = listing.name ?? "";
-  const { norm: tok, raw } = distinctiveToken(rawName);
+  const tokens = distinctiveTokens(rawName);
 
-  // Arm 1 — token overlap (+ auto-reject if no ≥4-char distinctive token exists).
-  if (!tok) return { ok: false, reason: "no_distinctive_token" };
-  if (!candName.includes(tok)) return { ok: false, reason: "name_token_miss" };
+  // Arm 1 — token overlap: at least ONE ≥4-char distinctive token must appear in the candidate name
+  // (auto-reject if the query name has no ≥4-char token). Any-match, so a shorter Google name that
+  // omits trailing words ("...and Orthodontics, LLP") still matches on an earlier token.
+  if (!tokens.length) return { ok: false, reason: "no_distinctive_token" };
+  if (!tokens.some((t) => candName.includes(t.norm))) return { ok: false, reason: "name_token_miss" };
   const city = (listing.city ?? "").toLowerCase().trim();
   if (!(city && candAddr.includes(city))) return { ok: false, reason: "city_miss" };
 
-  // Arm 3 — stubby-name floor.
+  // Arm 3 — stubby-name floor. Uses the strongest (longest) token for the signal-strength test.
   const queryHasNumeric = /\d/.test(rawName);
-  const isAcronym = !!raw && /^[A-Z]{2,6}$/.test(raw);
-  if (tok.length < 5) return { ok: false, reason: "stubby_short" };
+  const strongest = tokens.slice().sort((a, b) => b.norm.length - a.norm.length)[0];
+  const maxLen = strongest.norm.length;
+  const isAcronym = /^[A-Z]{2,6}$/.test(strongest.raw);
+  if (maxLen < 5) return { ok: false, reason: "stubby_short" };
   if (isAcronym && !(queryHasNumeric || city)) return { ok: false, reason: "stubby_acronym" };
 
   // Arm 2 — coords distance (only when listing coords are available; skip otherwise).
