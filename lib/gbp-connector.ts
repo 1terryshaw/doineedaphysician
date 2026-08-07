@@ -15,7 +15,7 @@ export type GbpConnectorError =
   | "resolver_timeout";
 
 export type GbpResolution =
-  | { ok: true; placeId: string; normalizedUrl: string; mode: "literal" | "redirect" }
+  | { ok: true; placeId: string; normalizedUrl: string; mode: "literal" | "redirect" | "searchtext_namecoords" }
   | { ok: false; code: GbpConnectorError };
 
 type ResolverDependencies = {
@@ -98,6 +98,113 @@ function literalPlaceId(value: string): string | null {
   return value.match(PLACE_ID)?.[1] || value.match(FEATURE_ID)?.[1] || null;
 }
 
+/** ChIJ place id ONLY (no feature-id fallback) — used for the "already a real place id" fast paths. */
+function chijPlaceId(value: string): string | null {
+  return value.match(PLACE_ID)?.[1] || null;
+}
+
+/** Google's canonical business name from a resolved /maps/place/<NAME>/ URL (URL-decoded, +→space). */
+function placeNameFromUrl(url: URL): string | null {
+  const m = url.pathname.match(/\/maps\/place\/([^/]+)/);
+  if (!m) return null;
+  try {
+    return decodeURIComponent(m[1].replace(/\+/g, " ")).trim() || null;
+  } catch {
+    return m[1].replace(/\+/g, " ").trim() || null;
+  }
+}
+
+/** Exact place coords: prefer the marker (!3d<lat>!4d<lng>); fall back to the @lat,lng viewport centre. */
+function coordsFromUrl(url: URL): { lat: number; lng: number } | null {
+  const marker = url.href.match(/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/);
+  if (marker) return { lat: parseFloat(marker[1]), lng: parseFloat(marker[2]) };
+  const centre = url.href.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
+  if (centre) return { lat: parseFloat(centre[1]), lng: parseFloat(centre[2]) };
+  return null;
+}
+
+function normLower(s: string): string {
+  return (s || "").toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+}
+
+/** Confidence guard: at least half of the URL name's distinctive (>=4-char) tokens appear in the candidate. */
+function nameOverlaps(urlName: string, candidateName: string): boolean {
+  const cand = normLower(candidateName);
+  if (!cand) return false;
+  const toks = normLower(urlName).split(" ").filter((t) => t.length >= 4);
+  if (!toks.length) return false;
+  const hits = toks.filter((t) => cand.includes(t)).length;
+  return hits / toks.length >= 0.5;
+}
+
+function distanceMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  if (![lat1, lng1, lat2, lng2].every(Number.isFinite)) return Infinity;
+  const R = 6371000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+/**
+ * Recovery step: a Google Copy/Share link carries only a feature-id (no ChIJ). The resolved URL,
+ * however, contains Google's canonical business name (/maps/place/<NAME>/) and exact coords
+ * (!3d/!4d). Search Places with THAT name, location-biased on those coords, and accept the top
+ * result's ChIJ id only if it is name-confident AND within ~150 m. Returns null (no throw) when the
+ * key env is empty, the URL lacks name/coords, or nothing clears the confidence bar. This is a
+ * per-listing REFRESH resolution of an already-seeded, claimed row (permitted).
+ */
+async function searchTextResolve(
+  url: URL,
+  deps: Required<ResolverDependencies>,
+  deadline: number,
+): Promise<string | null> {
+  const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+  if (!apiKey) return null; // no key (local/no-key env) — skip, never throw
+  const name = placeNameFromUrl(url);
+  const coords = coordsFromUrl(url);
+  if (!name || !coords) return null;
+  const remaining = deadline - Date.now();
+  if (remaining <= 0) return null;
+  try {
+    const res = await deps.fetch("https://places.googleapis.com/v1/places:searchText", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": apiKey,
+        "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.location",
+      },
+      body: JSON.stringify({
+        textQuery: name,
+        locationBias: { circle: { center: { latitude: coords.lat, longitude: coords.lng }, radius: 100.0 } },
+      }),
+      cache: "no-store",
+      signal: AbortSignal.timeout(remaining),
+    });
+    if (!res.ok) return null;
+    const data: {
+      places?: Array<{
+        id?: string;
+        displayName?: { text?: string };
+        location?: { latitude?: number; longitude?: number };
+      }>;
+    } = await res.json();
+    const c = (data.places || [])[0];
+    if (!c?.id || !/^ChIJ/i.test(c.id)) return null;
+    if (!nameOverlaps(name, c.displayName?.text ?? "")) return null;
+    const within =
+      c.location != null &&
+      distanceMeters(coords.lat, coords.lng, c.location.latitude ?? NaN, c.location.longitude ?? NaN) <= 150;
+    if (!within) return null;
+    return c.id;
+  } catch {
+    return null;
+  }
+}
+
 async function assertSafeGoogleAddress(url: URL, lookup: typeof dnsLookup): Promise<GbpConnectorError | null> {
   try {
     const addresses = await lookup(url.hostname, { all: true, verbatim: true });
@@ -140,14 +247,16 @@ export async function resolveGoogleBusinessProfileUrl(
   const parsed = parseApprovedUrl(raw);
   if (!parsed.url) return { ok: false, code: parsed.error! };
   const initial = parsed.url;
-  const literal = literalPlaceId(initial.href);
-  if (literal) return { ok: true, placeId: literal, normalizedUrl: normalizedStoredUrl(initial), mode: "literal" };
+  // Fast path: a full Maps URL that already carries a ChIJ place id — no network, no Places call.
+  const literalChij = chijPlaceId(initial.href);
+  if (literalChij) return { ok: true, placeId: literalChij, normalizedUrl: normalizedStoredUrl(initial), mode: "literal" };
 
   const deps: Required<ResolverDependencies> = { fetch: dependencies.fetch || fetch, lookup: dependencies.lookup || dnsLookup };
   let current = initial;
   const deadline = Date.now() + RESOLVER_TIMEOUT_MS;
 
   try {
+    // Follow the redirect chain to the terminal Maps URL. A ChIJ at any hop wins immediately.
     for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
       const addressError = await assertSafeGoogleAddress(current, deps.lookup);
       if (addressError) return { ok: false, code: addressError };
@@ -156,12 +265,7 @@ export async function resolveGoogleBusinessProfileUrl(
       if (response.status === 405 || response.status === 501) {
         response = await requestRedirect(current, "GET", deps, deadline);
       }
-      if (!REDIRECT_STATUS.has(response.status)) {
-        const placeId = literalPlaceId(current.href);
-        return placeId
-          ? { ok: true, placeId, normalizedUrl: normalizedStoredUrl(initial), mode: "redirect" }
-          : { ok: false, code: "could_not_extract_place_id" };
-      }
+      if (!REDIRECT_STATUS.has(response.status)) break; // terminal URL reached — resolve from `current`
       const location = response.headers.get("location");
       if (!location) return { ok: false, code: "could_not_resolve_link" };
       const next = new URL(location, current);
@@ -170,15 +274,27 @@ export async function resolveGoogleBusinessProfileUrl(
         return { ok: false, code: nextParsed.error === "unsupported_google_link" ? "redirect_left_google" : "could_not_resolve_link" };
       }
       current = nextParsed.url;
-      const placeId = literalPlaceId(current.href);
-      if (placeId) return { ok: true, placeId, normalizedUrl: normalizedStoredUrl(initial), mode: "redirect" };
-      if (hop === MAX_REDIRECTS) return { ok: false, code: "could_not_resolve_link" };
+      const hopChij = chijPlaceId(current.href);
+      if (hopChij) return { ok: true, placeId: hopChij, normalizedUrl: normalizedStoredUrl(initial), mode: "redirect" };
+      if (hop === MAX_REDIRECTS) break; // redirects exhausted — resolve from `current`
     }
+
+    // No literal ChIJ in the URL chain.
+    const chijFromCurrent = chijPlaceId(current.href);
+    if (chijFromCurrent) return { ok: true, placeId: chijFromCurrent, normalizedUrl: normalizedStoredUrl(initial), mode: "redirect" };
+
+    // Recovery: resolve a real ChIJ from the terminal URL's name + coords (Places searchText).
+    const recovered = await searchTextResolve(current, deps, deadline);
+    if (recovered) return { ok: true, placeId: recovered, normalizedUrl: normalizedStoredUrl(initial), mode: "searchtext_namecoords" };
+
+    // Fallback: preserve existing behaviour — accept a feature-id / CID pair if present, else fail as before.
+    const feature = current.href.match(FEATURE_ID)?.[1] || null;
+    if (feature) return { ok: true, placeId: feature, normalizedUrl: normalizedStoredUrl(initial), mode: "redirect" };
+    return { ok: false, code: "could_not_extract_place_id" };
   } catch (error) {
     if (error instanceof DOMException && error.name === "TimeoutError") return { ok: false, code: "resolver_timeout" };
     return { ok: false, code: "could_not_resolve_link" };
   }
-  return { ok: false, code: "could_not_resolve_link" };
 }
 
 export const GBP_OWNER_MESSAGES: Record<GbpConnectorError, string> = {

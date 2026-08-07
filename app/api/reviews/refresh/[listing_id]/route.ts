@@ -19,7 +19,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { supabaseAdmin, LISTINGS_TABLE } from "@/lib/supabase";
 import { verifyOwnerAccess } from "@/lib/auth";
-import { normalizeGbpUrl } from "@/lib/gbp-url";
+import { resolveGoogleBusinessProfileUrl } from "@/lib/gbp-connector";
 import verticalConfig from "@/lib/vertical.config";
 import { can } from "@/lib/tier-capabilities";
 
@@ -294,9 +294,12 @@ export async function POST(
     let via: "gbp" | "search" | "" = "";
 
     if (listing.gbp_url) {
-      const g = await normalizeGbpUrl(listing.gbp_url as string);
-      if (g.ok && g.gbp_place_id && /^ChIJ/i.test(g.gbp_place_id)) {
-        resolvedId = g.gbp_place_id;
+      // Shared resolver: follows the share link and, when it carries only a feature-id, recovers a
+      // real ChIJ via Places searchText on the resolved URL's name + coords (NOT listing.name, which
+      // is often an acronym like "SWSM" vs Google's "SMARTWEBSITE MANAGEMENT"). ChIJ only.
+      const g = await resolveGoogleBusinessProfileUrl(listing.gbp_url as string);
+      if (g.ok && /^ChIJ/i.test(g.placeId)) {
+        resolvedId = g.placeId;
         via = "gbp";
       }
     }
