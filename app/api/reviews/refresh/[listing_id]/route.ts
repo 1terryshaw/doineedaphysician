@@ -93,6 +93,7 @@ type Outcome =
   | "resolved_gbp"
   | "resolved_search"
   | "refused_unresolved"
+  | "refused_low_confidence"
   | "refused_rate_limited"
   | "error_places"
   | "error_api_key_invalid"
@@ -137,19 +138,87 @@ const NAME_STOPWORDS = new Set([
 function normName(s: string): string {
   return (s || "").toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
 }
+
+/** Coords from a resolved Maps URL: prefer the marker (!3d/!4d), fall back to @lat,lng. */
+function coordsFromResolvedUrl(href: string): { lat: number; lng: number } | null {
+  const m = href.match(/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/);
+  if (m) return { lat: parseFloat(m[1]), lng: parseFloat(m[2]) };
+  const at = href.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
+  if (at) return { lat: parseFloat(at[1]), lng: parseFloat(at[2]) };
+  return null;
+}
+/** Follow a share link (redirect only — NO Places API call) to read its !3d/!4d coords. */
+async function coordsFromShareLink(gbpUrl: string): Promise<{ lat: number; lng: number } | null> {
+  try {
+    const res = await fetch(gbpUrl, { redirect: "follow", cache: "no-store", signal: AbortSignal.timeout(6000) });
+    return coordsFromResolvedUrl(res.url);
+  } catch {
+    return null;
+  }
+}
+function haversineMeters(aLat: number, aLng: number, bLat: number, bLng: number): number {
+  if (![aLat, aLng, bLat, bLng].every(Number.isFinite)) return Infinity;
+  const R = 6371000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(bLat - aLat);
+  const dLng = toRad(bLng - aLng);
+  const x =
+    Math.sin(dLat / 2) ** 2 + Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(x));
+}
+/** The strongest (longest) ≥4-char, non-stopword token of the query name; keep the raw form for the acronym test. */
+function distinctiveToken(rawName: string): { norm: string | null; raw: string | null } {
+  let best: { norm: string; raw: string } | null = null;
+  for (const w of (rawName || "").split(/\s+/)) {
+    const n = normName(w);
+    if (n.length >= 4 && !NAME_STOPWORDS.has(n) && (!best || n.length > best.norm.length)) {
+      best = { norm: n, raw: w.replace(/[^A-Za-z0-9]/g, "") };
+    }
+  }
+  return best ? { norm: best.norm, raw: best.raw } : { norm: null, raw: null };
+}
+
+/**
+ * Tightened confidence gate — a wrong-business mis-link is worse than no reviews. Rejects unless
+ * ALL pass: (1) token overlap — a ≥4-char distinctive query token appears in the candidate name
+ * (auto-reject if the name has no ≥4-char token); city must appear in the candidate address;
+ * (2) coords distance — when listing coords are available, the candidate must be within 150m;
+ * (3) stubby-name floor — reject a <5-char distinctive token, or an all-caps acronym (/^[A-Z]{2,6}$/)
+ * with no numeric or city qualifier in the query (kills the "SWSM"→"Mr.SmartWeb" class).
+ */
 function isConfidentMatch(
-  cand: { displayName?: { text?: string }; formattedAddress?: string },
-  listing: { name?: string | null; city?: string | null }
-): boolean {
+  cand: { displayName?: { text?: string }; formattedAddress?: string; location?: { latitude?: number; longitude?: number } },
+  listing: { name?: string | null; city?: string | null },
+  listingCoords?: { lat: number; lng: number } | null
+): { ok: boolean; reason: string } {
   const candName = normName(cand.displayName?.text ?? "");
   const candAddr = (cand.formattedAddress ?? "").toLowerCase();
-  const distinctive = normName(listing.name ?? "")
-    .split(" ")
-    .filter((t) => t.length >= 4 && !NAME_STOPWORDS.has(t))[0];
-  const nameMatch = !!distinctive && candName.includes(distinctive);
+  const rawName = listing.name ?? "";
+  const { norm: tok, raw } = distinctiveToken(rawName);
+
+  // Arm 1 — token overlap (+ auto-reject if no ≥4-char distinctive token exists).
+  if (!tok) return { ok: false, reason: "no_distinctive_token" };
+  if (!candName.includes(tok)) return { ok: false, reason: "name_token_miss" };
   const city = (listing.city ?? "").toLowerCase().trim();
-  const cityMatch = !!city && candAddr.includes(city);
-  return nameMatch && cityMatch;
+  if (!(city && candAddr.includes(city))) return { ok: false, reason: "city_miss" };
+
+  // Arm 3 — stubby-name floor.
+  const queryHasNumeric = /\d/.test(rawName);
+  const isAcronym = !!raw && /^[A-Z]{2,6}$/.test(raw);
+  if (tok.length < 5) return { ok: false, reason: "stubby_short" };
+  if (isAcronym && !(queryHasNumeric || city)) return { ok: false, reason: "stubby_acronym" };
+
+  // Arm 2 — coords distance (only when listing coords are available; skip otherwise).
+  if (
+    listingCoords &&
+    cand.location &&
+    Number.isFinite(cand.location.latitude) &&
+    Number.isFinite(cand.location.longitude)
+  ) {
+    const d = haversineMeters(listingCoords.lat, listingCoords.lng, cand.location.latitude as number, cand.location.longitude as number);
+    if (d > 150) return { ok: false, reason: `coords_${Math.round(d)}m` };
+  }
+  return { ok: true, reason: "ok" };
 }
 async function resolveViaTextSearch(
   listing: {
@@ -158,31 +227,43 @@ async function resolveViaTextSearch(
     city?: string | null;
     province_state?: string | null;
     region_slug?: string | null;
+    gbp_url?: string | null;
+    lat?: number | null;
+    lng?: number | null;
   },
   apiKey: string
-): Promise<string | null> {
+): Promise<{ id: string | null; candidateFound: boolean }> {
   const region = listing.province_state || listing.region_slug || "";
   const textQuery = [listing.name, listing.address, listing.city, region].filter(Boolean).join(" ");
-  if (!textQuery.trim()) return null;
+  if (!textQuery.trim()) return { id: null, candidateFound: false };
+  // Listing coords for the distance check: prefer the share link's !3d/!4d (redirect-only, no Places
+  // call), fall back to stored lat/lng. Null → the distance arm is skipped, not fail-open.
+  let listingCoords: { lat: number; lng: number } | null = null;
+  if (listing.gbp_url) listingCoords = await coordsFromShareLink(listing.gbp_url);
+  if (!listingCoords && Number.isFinite(listing.lat) && Number.isFinite(listing.lng)) {
+    listingCoords = { lat: listing.lat as number, lng: listing.lng as number };
+  }
   try {
     const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "X-Goog-Api-Key": apiKey,
-        "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress",
+        "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.location",
       },
       body: JSON.stringify({ textQuery }),
       cache: "no-store",
     });
-    if (!res.ok) return null;
+    if (!res.ok) return { id: null, candidateFound: false };
     const data: {
-      places?: Array<{ id: string; displayName?: { text?: string }; formattedAddress?: string }>;
+      places?: Array<{ id: string; displayName?: { text?: string }; formattedAddress?: string; location?: { latitude?: number; longitude?: number } }>;
     } = await res.json();
     const c = (data.places || [])[0];
-    return c && isConfidentMatch(c, listing) ? c.id : null;
+    if (!c) return { id: null, candidateFound: false };
+    const verdict = isConfidentMatch(c, listing, listingCoords);
+    return { id: verdict.ok ? c.id : null, candidateFound: true };
   } catch {
-    return null;
+    return { id: null, candidateFound: false };
   }
 }
 
@@ -303,20 +384,27 @@ export async function POST(
         via = "gbp";
       }
     }
+    let searchRejected = false;
     if (!resolvedId) {
-      const cand = await resolveViaTextSearch(
+      const r = await resolveViaTextSearch(
         listing as {
           name?: string | null;
           address?: string | null;
           city?: string | null;
           province_state?: string | null;
           region_slug?: string | null;
+          gbp_url?: string | null;
+          lat?: number | null;
+          lng?: number | null;
         },
         apiKey
       );
-      if (cand) {
-        resolvedId = cand;
+      if (r.id) {
+        resolvedId = r.id;
         via = "search";
+      } else if (r.candidateFound) {
+        // Google returned a candidate but the tightened gate rejected it (low signal / wrong coords).
+        searchRejected = true;
       }
     }
 
@@ -325,16 +413,18 @@ export async function POST(
         listing_id: listing.id as string,
         listing_slug: listing.slug as string,
         place_id: null,
-        outcome: "refused_unresolved",
+        outcome: searchRejected ? "refused_low_confidence" : "refused_unresolved",
         caller,
         // reaching here means the GBP url didn't yield a ChIJ, so a Text Search WAS billed.
         places_called: true,
-        detail: "no confident Places match; owner must supply a Google Business Profile link",
+        detail: searchRejected
+          ? "Text Search candidate rejected by confidence gate (low signal or coords mismatch)"
+          : "no confident Places match; owner must supply a Google Business Profile link",
       });
       return NextResponse.json(
         {
           error: "We couldn't match your business on Google. Add your Google Business Profile link and try again.",
-          outcome: "refused_unresolved",
+          outcome: searchRejected ? "refused_low_confidence" : "refused_unresolved",
           needs_gbp_url: true,
         },
         { status: 422 }
