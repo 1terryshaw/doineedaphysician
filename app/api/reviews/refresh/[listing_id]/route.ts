@@ -111,6 +111,17 @@ function isApiKeyDead(status: number, body: string): boolean {
 }
 
 /**
+ * Google "Copy link" share URLs resolve to a feature-id / CID pair (0x..:0x..), NOT a ChIJ
+ * place id. gbp-connect accepts and stores those, but Places Details v1 (places/{id}) only
+ * accepts a canonical ChIJ place id — a feature-id 400s and is mis-audited as a dead key
+ * (Sentinel false alarm). Treat a non-ChIJ stored id as "needs resolution" so it flows through
+ * the same gbp_url → Text Search path and self-heals to a ChIJ on the next refresh.
+ */
+function isChIJPlaceId(id: unknown): boolean {
+  return typeof id === "string" && /^ChIJ/i.test(id);
+}
+
+/**
  * On-demand place_id resolution (owner-triggered, conservative). Ported from the
  * doineedanelectrician carve-out, with the stopword list generalized off "electric/solar"
  * to generic business tokens. When a paid listing has no google_place_id, resolve one from
@@ -270,12 +281,15 @@ export async function POST(
     );
   }
 
-  // NO PLACE ID — RESOLVE it (owner-triggered, on the paid path). Order: the owner's stored
-  // GBP url (exact ChIJ) first, then stored name+address+city via Text Search (conservative:
-  // name AND city must match, else discarded). On a confident match, PERSIST it to the row so
-  // the next refresh + the display path reuse it, then proceed. On no match, fall through to the
-  // GBP-url path (422 — the owner pastes their profile link). Never guesses.
-  if (!listing.google_place_id) {
+  // NO (USABLE) PLACE ID — RESOLVE it (owner-triggered, on the paid path). This fires when
+  // google_place_id is null OR is a non-ChIJ feature-id (0x..:0x.. from a Google "Copy link"
+  // that gbp-connect stored) — Places Details v1 rejects a feature-id, so we must resolve a
+  // real ChIJ instead of calling Details with it. Order: the owner's stored GBP url (exact
+  // ChIJ) first, then stored name+address+city via Text Search (conservative: name AND city
+  // must match, else discarded). On a confident match, PERSIST the ChIJ to the row (overwriting
+  // any feature-id) so the next refresh + the display path reuse it, then proceed. On no match,
+  // fall through to the GBP-url path (422 — the owner pastes their profile link). Never guesses.
+  if (!isChIJPlaceId(listing.google_place_id)) {
     let resolvedId = "";
     let via: "gbp" | "search" | "" = "";
 
