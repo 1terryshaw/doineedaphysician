@@ -10,7 +10,7 @@ const CASL_SENDER = "Smart Website Management"; // legal sender behind every emp
 
 // Transactional auth sender (owner login + claim verification). Distinct from the
 // notifications@ lead/inquiry sender. Migrated off Gmail SMTP — see lib/email.ts.
-const AUTH_FROM = "Smart Website Management <verify@auth.smartwebsitemanagement.ca>";
+const AUTH_FROM = `${verticalConfig.name} <verify@doineedanetwork.com>`;
 
 export type AuthSendResult = { ok: true; id: string } | { ok: false; error: string };
 
