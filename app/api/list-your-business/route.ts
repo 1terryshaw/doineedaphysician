@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
   const website = websiteNorm.url; // normalized https URL, or null
   const gbp_raw = (body.gbp_url || "").trim();
 
-  if (!business_name || !email || !phone || !city || !province || !country || !gbp_raw) return NextResponse.json({ error: "Please fill in all required fields." }, { status: 400 });
+  if (!business_name || !email || !phone || !city || !province || !country) return NextResponse.json({ error: "Please fill in all required fields." }, { status: 400 });
   if (!websiteNorm.ok) return NextResponse.json({ error: "Please enter a valid website (e.g. www.yourbusiness.com) or leave it blank." }, { status: 400 });
   if (!VALID_COUNTRIES.has(country)) return NextResponse.json({ error: "Please choose a valid country." }, { status: 400 });
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return NextResponse.json({ error: "Please enter a valid email address." }, { status: 400 });
@@ -75,8 +75,20 @@ export async function POST(req: NextRequest) {
     if (domain && disposable.includes(domain)) return NextResponse.json({ error: "Please use a business email address." }, { status: 400 });
   } catch { /* fail-open */ }
 
-  const gbp = await normalizeGbpUrl(gbp_raw);
-  if (!gbp.ok) return NextResponse.json({ error: gbp.error }, { status: 400 });
+  // GBP is OPTIONAL (Terry 2026-07-22, "GBP optional everywhere"). normalizeGbpUrl("")
+  // returns ok:false, so an unconditional call would reject every submit that omits the
+  // now-optional field. Skip it when blank and carry nulls to the insert; a bad NON-blank
+  // link is still a 400.
+  let gbp: { gbp_url: string | null; gbp_place_id: string | null; gbp_cid: string | null } = {
+    gbp_url: null,
+    gbp_place_id: null,
+    gbp_cid: null,
+  };
+  if (gbp_raw) {
+    const res = await normalizeGbpUrl(gbp_raw);
+    if (!res.ok) return NextResponse.json({ error: res.error }, { status: 400 });
+    gbp = { gbp_url: res.gbp_url, gbp_place_id: res.gbp_place_id, gbp_cid: res.gbp_cid };
+  }
 
   // dedup — anti-hijack guard keys on the operative claim flag (`claimed`)
   type MatchedListing = { id: number; business_name: string | null; slug: string; claimed: boolean };
