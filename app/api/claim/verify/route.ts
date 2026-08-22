@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin, LISTINGS_TABLE } from "@/lib/supabase";
 import { setAuthCookie } from "@/lib/auth";
-import { canRepublishOnClaim } from "@/lib/republish-guard";
+import { evaluateRepublish } from "@/lib/republish-guard";
+import { logRepublishDecision } from "@/lib/republish-audit";
 
 export const dynamic = "force-dynamic";
 
@@ -46,7 +47,7 @@ export async function GET(request: NextRequest) {
   //
   // Path 2 — TDL #1068 republish-on-claim. An email-verified claim is consent from
   // the listing's subject, so a de-served SEEDED person row republishes here.
-  // canRepublishOnClaim fails CLOSED. Two separate authorities publish here and only
+  // evaluateRepublish fails CLOSED. Two separate authorities publish here and only
   // these two: person_seeded_licensing_roster (K38 consent, ruling 2026-07-18) and
   // nppes_type2_org_claim_then_publish (organization owner control, ruling 2026-07-22 —
   // which additionally requires npi present AND submitted_via='seeded', so the org lane
@@ -57,15 +58,51 @@ export async function GET(request: NextRequest) {
   // `npi` MUST stay in the SELECT above: the org lane reads it, and an absent column is an
   // undefined field, which the guard treats as DENY_org_lane_missing_npi — silently and
   // permanently refusing every organization claim.
+  //
+  // Every guard decision — ALLOW *and* DENY — is written to empire_republish_decisions BEFORE
+  // any flip, and the flip is gated on that write landing. A DENY is not a dead end for the
+  // person: they are a verified owner, so they are routed to /claim/held/<slug>, which renders
+  // their name behind the owner cookie ONLY.
   // ---------------------------------------------------------------------------
+  // `true` when this claim verified ownership of a row the guard did NOT republish.
+  // The claim still stands; the page stays hidden — so the owner is routed to the held
+  // SIGNAL page rather than a silent /owner dashboard sitting over a 404.
+  let heldAfterClaim = false;
+
   if (listing.submitted_via === "self_serve" && listing.submission_status === "pending_verification") {
     update.is_published = true;
     update.submission_status = "verified";
-  } else if (canRepublishOnClaim(listing)) {
-    update.is_published = true;
-    update.deserve_reason = null;
-    update.deserved_at = null;
+  } else if (listing.is_published === false) {
+    // The guard runs ONLY for a held row. An already-published claim skips this block
+    // entirely — no adjudication, no audit row — exactly as before.
+    const guardInput = {
+      is_published: listing.is_published,
+      deserve_reason: listing.deserve_reason,
+      name: listing.name,
+      npi: listing.npi,
+      submitted_via: listing.submitted_via,
+    };
+    const decision = evaluateRepublish(guardInput);
+
+    // AUDIT BEFORE FLIP, and the flip is gated on the audit landing. An unlogged flip is
+    // unreconstructable, so a failed audit insert is treated as DENY (fail-closed) rather
+    // than as a technicality to publish through.
+    const auditLogged = await logRepublishDecision({
+      listing_id: listing.id,
+      listing_slug: slug,
+      input: guardInput,
+      decision,
+    });
+
+    if (decision.allow && auditLogged) {
+      update.is_published = true;
+      update.deserve_reason = null;
+      update.deserved_at = null;
+    } else {
+      heldAfterClaim = true;
+    }
   }
+
 
   // TDL #1047 — K36. supabase-js RETURNS { error }; it does not throw, and an UPDATE matching
   // ZERO rows returns no error at all. This write was awaited unchecked and the auth cookie was
@@ -85,6 +122,23 @@ export async function GET(request: NextRequest) {
   if ((count ?? 0) === 0) {
     console.error(`[claim/verify] claim write matched 0 rows for ${slug} (id=${listing.id})`);
     return NextResponse.redirect(`${siteUrl}/claim/error`);
+  }
+
+  // The claim is recorded but the listing is still hidden (DENY, or the audit did not land).
+  // Route to the held SIGNAL page with the owner cookie set, NOT to /owner — the improvement
+  // over a silent dashboard over a 404. No place-resolve/billing handoff fires for a row that
+  // is not publicly visible.
+  //
+  // NOTE the reference (webdesigner f217317) also routes here on a FAILED FLIP, because there
+  // the claim is an RPC and the flip is a second UPDATE, so a failed flip leaves claimed=true
+  // with the row still down. Here the claim and the flip are ONE atomic UPDATE: if it fails,
+  // nothing was written at all, and the checks above already redirect to /claim/error with the
+  // magic link still valid for an idempotent retry. The half-written state that case exists to
+  // catch cannot occur on this path.
+  if (heldAfterClaim) {
+    const heldResp = NextResponse.redirect(`${siteUrl}/claim/held/${slug}`);
+    setAuthCookie(heldResp, token, slug);
+    return heldResp;
   }
 
   const response = NextResponse.redirect(`${siteUrl}/owner/${slug}`);
