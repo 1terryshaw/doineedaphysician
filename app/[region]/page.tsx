@@ -4,7 +4,6 @@ import verticalConfig from "@/lib/vertical.config";
 import { getListingsByProvincePaged, getRegionTotal, REGION_PAGE_SIZE } from "@/lib/supabase";
 import ListingCard from "@/components/ListingCard";
 import Pagination from "@/components/Pagination";
-import ShareButtons from "@/components/pizzazz/ShareButtons";
 import { regionBreadcrumbSchema, regionCollectionPageSchema, localizeFaqs } from "@/lib/seo";
 import FaqSection from "@/components/FaqSection";
 
@@ -61,9 +60,6 @@ export default async function RegionPage({ params, searchParams }: Props) {
       <h1 className="text-3xl font-bold mb-2 text-gray-900">
         Physicians in {regionData.label}
       </h1>
-      <div className="mb-4">
-        <ShareButtons variant="compact" title={`${verticalConfig.name} — Directory`} />
-      </div>
       <p className="text-gray-600 mb-8">
         Browse {total.toLocaleString("en-US")} {total === 1 ? "physician" : "physicians"} in{" "}
         {regionData.label},{" "}

@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import verticalConfig from "@/lib/vertical.config";
 import PersonalityBadge from "@/components/pizzazz/PersonalityBadge";
-import ShareButtons from "@/components/pizzazz/ShareButtons";
 import FadeIn from "@/components/pizzazz/FadeIn";
 import { BrowseByArea } from "@/components/browse-by-area";
 import { websiteSearchSchema } from "@/lib/seo";
@@ -83,11 +82,6 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
-
-      {/* Share Buttons */}
-      <div className="max-w-4xl mx-auto px-4 pt-6">
-        <ShareButtons variant="compact" title={`${verticalConfig.name} — ${verticalConfig.tagline}`} />
-      </div>
 
       {/* Section A — Browse by specialty (internal /specialty/<slug> tiles).
           Counts render dynamically from physician_specialty_counts(); tiles always

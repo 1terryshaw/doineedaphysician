@@ -5,7 +5,6 @@ import { getListingsByCity } from "@/lib/supabase";
 import { getCityBySlug, CITIES, PROVINCES } from "@/lib/constants";
 import ListingCard from "@/components/ListingCard";
 import verticalConfig from "@/lib/vertical.config";
-import ShareButtons from "@/components/pizzazz/ShareButtons";
 import FaqSection from "@/components/FaqSection";
 import { localizeFaqs } from "@/lib/seo";
 
@@ -80,9 +79,6 @@ export default async function CityPage({ params }: Props) {
       <h1 className="text-3xl font-bold mb-2">
         Professionals in {cityName}
       </h1>
-      <div className="mb-4">
-        <ShareButtons variant="compact" title={`${verticalConfig.name} — Directory`} />
-      </div>
       <p className="text-gray-600 mb-8">
         Browse {listings.length} {listings.length === 1 ? "professional" : "professionals"} in {cityName}, {provinceName}.
       </p>

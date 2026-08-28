@@ -1,6 +1,5 @@
 import Link from "next/link";
 import verticalConfig from "@/lib/vertical.config";
-import ShareButtons from "@/components/pizzazz/ShareButtons";
 
 export default function Footer() {
   return (
@@ -106,10 +105,6 @@ export default function Footer() {
               &copy; {new Date().getFullYear()} {verticalConfig.name}. All
               rights reserved.
             </p>
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-gray-500">Enjoying the site? Share it.</span>
-              <ShareButtons variant="compact" title={verticalConfig.name} />
-            </div>
           </div>
         </div>
       </div>
