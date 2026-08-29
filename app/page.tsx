@@ -155,6 +155,7 @@ export default async function HomePage() {
       <FadeIn as="div" delay={100}>
         <BrowseByArea
           vertical="physician"
+          subtitle="Find a physician in your area"
           accentTextClass="text-[#3B82F6] hover:text-[#306bca]"
         />
       </FadeIn>
