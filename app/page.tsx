@@ -4,9 +4,10 @@ import verticalConfig from "@/lib/vertical.config";
 import PersonalityBadge from "@/components/pizzazz/PersonalityBadge";
 import FadeIn from "@/components/pizzazz/FadeIn";
 import { BrowseByArea } from "@/components/browse-by-area";
+import RegionHub, { type HubSection, type HubRegion } from "@/components/RegionHub";
+import { getRegionByProvinceCode, countryOfProvinceCode } from "@/lib/constants";
 import { websiteSearchSchema } from "@/lib/seo";
-import { getSpecialtyCounts } from "@/lib/supabase";
-
+import { getSpecialtyCounts, getRegionCounts } from "@/lib/supabase";
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
 
@@ -17,6 +18,39 @@ export const metadata: Metadata = {
 const fmt = (n: number) => new Intl.NumberFormat("en-US").format(n);
 
 export default async function HomePage() {
+  // WS1 (site-surfer day-3) — market-aware Browse-by-Area index. The heading
+  // used to stand over a single "/directory" link. It now carries the SAME
+  // data-true region hub the directory serves: one section per COUNTRY present
+  // in published inventory, each listing THAT market's own subdivision — CA
+  // provinces, US states
+  // — with its live published count. The slug comes from getRegionByProvinceCode,
+  // i.e. THIS repo's own REGIONS table, so the chip href is whatever /[region]
+  // actually resolves here. An unmapped code is SKIPPED, never linked (K119/K123).
+  // Keyed by SLUG and summed: the hub at /<slug> serves every row with that
+  // province_state, so a stray row whose `country` disagrees with its code (a
+  // handful exist fleet-wide) must not mint a SECOND chip in the other section.
+  // The CODE decides the country, because the code is what picks the hub.
+  const bbaByCode = new Map<string, { country: "CA" | "US"; region: HubRegion }>();
+  for (const c of await getRegionCounts()) {
+    const r = getRegionByProvinceCode(c.province_state);
+    if (!r) continue; // unmapped code — would 404
+    const prev = bbaByCode.get(r.slug);
+    if (prev) { prev.region.count += c.n; continue; }
+    bbaByCode.set(r.slug, {
+      country: countryOfProvinceCode(c.province_state) === "CA" ? "CA" : "US",
+      region: { slug: r.slug, name: r.name, count: c.n },
+    });
+  }
+  const bbaCa: HubRegion[] = [];
+  const bbaUs: HubRegion[] = [];
+  for (const e of Array.from(bbaByCode.values())) (e.country === "CA" ? bbaCa : bbaUs).push(e.region);
+  const bbaByName = (a: HubRegion, b: HubRegion) => a.name.localeCompare(b.name);
+  bbaCa.sort(bbaByName);
+  bbaUs.sort(bbaByName);
+  const regionSections: HubSection[] = [];
+  if (bbaCa.length) regionSections.push({ country: "CA", label: "🇨🇦 Canada", regions: bbaCa });
+  if (bbaUs.length) regionSections.push({ country: "US", label: "🇺🇸 United States", regions: bbaUs });
+
   const counts = await getSpecialtyCounts();
   return (
     <>
@@ -158,6 +192,11 @@ export default async function HomePage() {
           subtitle="Find a physician in your area"
           accentTextClass="text-[#3B82F6] hover:text-[#306bca]"
         />
+        {regionSections.length > 0 && (
+          <div className="max-w-7xl mx-auto px-4 pb-4">
+            <RegionHub sections={regionSections} />
+          </div>
+        )}
       </FadeIn>
 
     </>
