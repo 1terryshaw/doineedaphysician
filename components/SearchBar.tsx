@@ -132,8 +132,16 @@ export default function SearchBar({
 
   return (
     <form onSubmit={handleSubmit} className={isHero ? "w-full max-w-3xl mx-auto" : "w-full"}>
+      {/* A2 — the row must WRAP. A <select> sizes to its widest <option>, and its
+          automatic min-width means it will not shrink below that; with the
+          non-shrinkable selects plus the Search button, this row's content
+          overflowed the viewport on /directory at 768 (and at 1024 where the
+          region cascade unlocks a city dropdown), clipping the button and putting
+          the document into horizontal scroll. sm:flex-wrap lets a control drop to
+          a second line instead of being cut off, and min-w-0 lets the text input
+          give up its share first. */}
       <div
-        className={`flex flex-col sm:flex-row gap-3 ${
+        className={`flex flex-col sm:flex-row sm:flex-wrap gap-3 ${
           isHero ? "bg-white/10 backdrop-blur-sm p-4 rounded-xl" : "bg-gray-50 p-4 rounded-lg"
         }`}
       >
@@ -142,7 +150,7 @@ export default function SearchBar({
           placeholder={`Search ${verticalConfig.listingNounPlural} by name...`}
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          className="flex-1 px-4 py-2 rounded-lg border border-gray-200 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="flex-1 min-w-0 sm:min-w-[14rem] px-4 py-2 rounded-lg border border-gray-200 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
         {showSpecialtyFilter && (
         <select
