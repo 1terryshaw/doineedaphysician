@@ -15,6 +15,12 @@ const WORDMARK = verticalConfig.name.replace(/\.(com|ca|org|net|info)$/i, "");
 const HEADER_FOCUS_RING = "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700";
 const HEADER_ACTIVE_LINK = "font-semibold underline decoration-2 underline-offset-4";
 
+// Claim-CTA contrast (WCAG AA, 4.5:1). Fixed at the two CTA call sites, NOT at the colour
+// token: the token has consumers outside this header and editing it would reskin them.
+// Neither a label flip nor primaryColor reaches 4.5:1 here, so the button colour is a
+// chosen darker shade of the same brand hue; the white label stays.
+const CLAIM_CTA_BG = "#4A6B50";
+
 // This is deliberately a client display adapter. Public layout rendering never
 // reads a cookie or owner record; the server-authoritative endpoint is queried
 // after hydration and a failed probe remains fully logged out.
@@ -75,7 +81,7 @@ export default function Header() {
       className={item.primary
         ? `${HEADER_FOCUS_RING} no-underline whitespace-nowrap ${mobile ? "block text-center" : ""} px-4 py-2 rounded-lg text-white font-semibold text-sm hover:opacity-90 transition-opacity ${item.active ? "ring-2 ring-gray-900 ring-offset-2" : ""}`
         : `${HEADER_FOCUS_RING} ${mobile ? "block" : "whitespace-nowrap"} text-gray-600 hover:text-gray-900 ${item.active ? HEADER_ACTIVE_LINK : ""}`}
-      style={item.primary ? { backgroundColor: (verticalConfig as { accentColor?: string }).accentColor || verticalConfig.primaryColor } : undefined}
+      style={item.primary ? { backgroundColor: CLAIM_CTA_BG } : undefined}
       aria-current={item.active ? "page" : undefined}
     >
       {item.label}
@@ -123,7 +129,7 @@ export default function Header() {
               <Link
                 href={primaryItem.href}
                 className={`${HEADER_FOCUS_RING} no-underline whitespace-nowrap px-2.5 sm:px-3 py-1.5 rounded-lg text-white font-semibold text-xs sm:text-sm hover:opacity-90 transition-opacity`}
-                style={{ backgroundColor: (verticalConfig as { accentColor?: string }).accentColor || verticalConfig.primaryColor }}
+                style={{ backgroundColor: CLAIM_CTA_BG }}
                 aria-current={primaryItem.active ? "page" : undefined}
               >
                 <span className="lg:hidden">Claim</span>
