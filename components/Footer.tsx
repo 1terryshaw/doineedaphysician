@@ -77,6 +77,11 @@ export default function Footer() {
               <div className="mt-6">
                 <h4 className="text-white font-semibold mb-2 text-sm">Related Directories</h4>
                 <ul className="space-y-1 text-sm">
+                  <li>
+                    <a href="https://doineedapro.com/directories" target="_blank" rel="noopener noreferrer" className="font-medium hover:text-white">
+                      Browse all directories &rarr;
+                    </a>
+                  </li>
                   {verticalConfig.crossReferrals.map((ref) => (
                     <li key={ref.url}>
                       <a
