@@ -350,6 +350,39 @@ export async function getListing(slug: string): Promise<Listing | null> {
   return data;
 }
 
+// CLAIM-CONTEXT read — the ONLY read that renders a HIDDEN (is_published=false) row.
+// Deliberately OMITS `.neq("is_published", false)` so a de-served / seeded row can reach
+// its own claim page (gone-page link → claim → republish-on-claim through the canonical
+// guard). It is this repo's own getListing() above MINUS the is_published filter —
+// notary 39c8789 pattern, ported by gone-page-claim-link-v1-B2 (2026-09-02, K148).
+//
+// 🔴 USE ONLY on the claim path (/claim/[slug] page). NEVER call this from a public/serve
+// read — directory listing, search, sitemap, category, region, or the cold-outreach queries.
+// Widening a public read to this would re-open the de-serve leak (#1010 / #1014). The public
+// getListing() above and every getListings* stay is_published-filtered and byte-unchanged.
+export async function getListingForClaim(slug: string): Promise<Listing | null> {
+  const { data, error } = await supabaseAdmin
+    .from(LISTINGS_TABLE)
+    .select("*")
+    .in("country", ["CA", "US"])
+    .eq("slug", slug)
+    .maybeSingle();
+
+  if (error) {
+    console.error(`Error fetching claim listing "${slug}" from ${LISTINGS_TABLE}:`, error);
+    // TDL #994: THROW, never `return null` on a DB failure. PostgREST's .single() reports
+    // zero rows AS AN ERROR (PGRST116), so `error -> null` conflated "query failed" with
+    // "listing does not exist" — and the caller turns null into notFound(). A transient
+    // statement timeout therefore served a hard 404 for a LIVE listing, telling Google the
+    // page was GONE. .maybeSingle() above gives 0 rows as {data:null,error:null}, so a
+    // genuine miss still returns null (=> 404, unchanged) and only real failures throw.
+    throw new Error(`getListingForClaim failed (${slug}): ${error.message || "unknown"}`);
+  }
+
+  if (!data) return null; // genuine not-found
+  return data;
+}
+
 // FIX-EMPIRE-CASCADING-SWEEP — runtime regions backing cascading dropdowns.
 // DISTINCT (province_state, city) filtered to canonical 64 codes. 5-min cache.
 export interface DirectoryRegion {
