@@ -91,6 +91,19 @@ export default async function ListingPage({ params }: Props) {
   // The detail read has ALREADY nulled address/postal_code when the gate is off; this is the
   // readable statement of intent at the consumer, not the only thing holding the line.
   const streetPublic = hasPublicStreet(lstAddr);
+  // STRUCTURED NAP FIELDS (Phase 1 fan, 2026-09-04). Read through ONE narrowly typed
+  // view, the same way the address gate reads through `lstAddr`: this repo's own `Listing`
+  // interface may or may not declare these columns, and this neither widens nor fights it.
+  //
+  // NO GATE HERE, DELIBERATELY. An employee count, a founding year and a list of payment
+  // types are non-sensitive public business facts — they say nothing about where a person
+  // lives. There is no grain split and no owner visibility toggle: the columns are NULL on
+  // every seeded row and fill only when an owner saves the edit form.
+  const napFacts = listing as {
+    year_established?: number | null;
+    employee_count?: number | null;
+    payment_methods?: string | null;
+  };
   // The geo node rides the PERMISSION, not `streetPublic`. A 12-decimal GeoCoordinates
   // point at street precision IS the address in machine-readable form, so suppressing the
   // string while emitting the point would be a gate cosmetically closed and materially
@@ -204,6 +217,20 @@ export default async function ListingPage({ params }: Props) {
       areaServed: serviceArea.map((c) => ({ "@type": "City", name: c })),
     }),
     ...(lst.year_established && { foundingDate: String(lst.year_established) }),
+    // PUBLIC BUSINESS FACTS (Phase 1 fan, 2026-09-04). Emitted ONLY when the owner filled
+    // the field — an empty property is worse than an absent one, and these columns are NULL
+    // on every seeded row by design (no backfill).
+    //
+    // schema.org's range for `numberOfEmployees` is QuantitativeValue, NOT a bare number,
+    // so the integer is wrapped. A raw int validates as a type mismatch.
+    ...(napFacts.employee_count
+      ? { numberOfEmployees: { "@type": "QuantitativeValue", value: napFacts.employee_count } }
+      : {}),
+    // `paymentAccepted` IS Text in schema.org ("Cash, Credit Card, ...") — a free-text
+    // list, not an enum. Stored already trimmed and newline-collapsed by the save path.
+    ...(napFacts.payment_methods && napFacts.payment_methods.trim()
+      ? { paymentAccepted: napFacts.payment_methods.trim() }
+      : {}),
     ...(sameAsLinks.length > 0 && { sameAs: sameAsLinks }),
 };
 
@@ -268,6 +295,19 @@ export default async function ListingPage({ params }: Props) {
                   {lst.year_established && (
                     <p className="text-xs text-gray-500 mt-1">Established {lst.year_established}</p>
                   )}
+                  {/* PUBLIC BUSINESS FACTS (Phase 1 fan, 2026-09-04). One line per fact, each
+                      rendered ONLY when its value is present, so an unfilled field emits no label
+                      and no empty element. The same values feed foundingDate / numberOfEmployees /
+                      paymentAccepted in the JSON-LD above — the page and the structured data are
+                      read off one row and cannot disagree. */}
+                  {napFacts.employee_count != null && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      {napFacts.employee_count} {napFacts.employee_count === 1 ? "employee" : "employees"}
+                    </p>
+                  )}
+                  {napFacts.payment_methods && napFacts.payment_methods.trim() && (
+                    <p className="text-xs text-gray-500 mt-1">Payment methods: {napFacts.payment_methods.trim()}</p>
+                  )}
                 </div>
               </div>
               <div className="flex gap-2 flex-shrink-0 ml-4">
@@ -327,7 +367,13 @@ export default async function ListingPage({ params }: Props) {
             )}
 
             <div className="prose max-w-none">
-              <p className="text-gray-700 leading-relaxed">{listing.description}</p>
+              {/* DESCRIPTION LINE BREAKS (Phase 1 fan, 2026-09-04). `white-space: pre-line` surfaces
+                  the newlines an owner ALREADY types into the edit form's textarea — the save path
+                  stores them verbatim (no trim, no collapse, no sanitiser on any of the four fleet
+                  route shapes), and HTML's whitespace rules were collapsing them into one paragraph
+                  on the way out. CSS ONLY: no dangerouslySetInnerHTML, no markdown, no HTML from
+                  user input. */}
+              <p className="text-gray-700 leading-relaxed whitespace-pre-line">{listing.description}</p>
             </div>
 
             {/* Medical-vertical NON-NEGOTIABLE: license-verification notice */}
