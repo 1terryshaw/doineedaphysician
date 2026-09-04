@@ -3,6 +3,7 @@ import { hasDeliverableEmail } from "@/lib/inquiry-guard";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getListing } from "@/lib/supabase";
+import { hasPublicStreet, isAddressPublic } from "@/lib/address-visibility";
 import verticalConfig from "@/lib/vertical.config";
 import InquiryForm from "@/components/InquiryForm";
 import ListingClaimCTA from "@/components/ListingClaimCTA";
@@ -78,6 +79,24 @@ export default async function ListingPage({ params }: Props) {
     );
   }
   if (!listing) notFound(); // genuine: no such listing
+
+  // ADDRESS SHOW/HIDE (Phase 2 fleet fan, 2026-09-04). Street fields read through ONE
+  // narrowly-typed view: the repo's own `Listing` interface may or may not declare them,
+  // and this neither widens nor fights it.
+  const lstAddr = listing as { address?: string | null; postal_code?: string | null; show_address?: boolean | null };
+  // ONE predicate, shared by the NAP block, the Maps link and the PostalAddress JSON-LD, so
+  // the rendered page and the structured data can never disagree about whether a street is
+  // public. UNIFORM CODE: grain sets only the COLUMN DEFAULT in the migration (business TRUE,
+  // person/uncertain FALSE — K38, the address is often a home). No grain branch here.
+  // The detail read has ALREADY nulled address/postal_code when the gate is off; this is the
+  // readable statement of intent at the consumer, not the only thing holding the line.
+  const streetPublic = hasPublicStreet(lstAddr);
+  // The geo node rides the PERMISSION, not `streetPublic`. A 12-decimal GeoCoordinates
+  // point at street precision IS the address in machine-readable form, so suppressing the
+  // string while emitting the point would be a gate cosmetically closed and materially
+  // open. Gated on the permission alone because an empty `address` TEXT field must not
+  // drop a coordinate the owner consented to publish.
+  const geoPublic = isAddressPublic(lstAddr);
   const { photos, logo } = await listPhotosForListing(listing.id);
   const lst = listing as typeof listing & {
     hours_json?: HoursJson | null;
@@ -150,11 +169,15 @@ export default async function ListingPage({ params }: Props) {
     ...(listing.website && { url: listing.website }),
     address: {
       "@type": "PostalAddress",
+      // streetAddress/postalCode are emitted ONLY behind the owner's opt-in. A hidden
+      // address must never reach the structured data — that is the whole point of the gate.
+      ...(streetPublic && lstAddr.address ? { streetAddress: lstAddr.address } : {}),
+      ...(streetPublic && lstAddr.postal_code ? { postalCode: lstAddr.postal_code } : {}),
       addressLocality: listing.city,
       addressRegion: listing.province_state,
       addressCountry: listing.country || "CA",
     },
-    ...(geoEligible && {
+    ...(geoEligible && geoPublic && {
       geo: { "@type": "GeoCoordinates", latitude: geoLat, longitude: geoLng },
     }),
     ...(listing.google_rating && {
@@ -272,11 +295,25 @@ export default async function ListingPage({ params }: Props) {
             {listing.now_hiring && (
               <p className="text-sm text-green-700 mb-3">This business is currently hiring. Contact them directly to inquire about opportunities.</p>
             )}
-            {listing.city && (
-              <p className="text-gray-500 mb-3">
-                {listing.city}
-                {listing.province_state ? `, ${listing.province_state}` : ""}
-              </p>
+            {/* NAP block (Phase 2 fleet fan, 2026-09-04). The public name/address pair.
+                The street lines render only when the owner's gate is on AND a street is stored,
+                so on a person/uncertain-grain vertical (default FALSE) this degrades to exactly
+                the city/region line it replaced — that expression is preserved verbatim below.
+                UNIFORM CODE: no grain branch, here or anywhere else in the fan. */}
+            {(listing.city || streetPublic) && (
+              <address className="not-italic text-gray-500 mb-3">
+                <span className="block">{listing.name}</span>
+                {streetPublic && lstAddr.address && (
+                  <span className="block">{lstAddr.address}</span>
+                )}
+                {(listing.city) && (
+                  <span className="block">
+                    {listing.city}
+                    {listing.province_state ? `, ${listing.province_state}` : ""}
+                    {streetPublic && lstAddr.postal_code ? ` ${lstAddr.postal_code}` : ""}
+                  </span>
+                )}
+              </address>
             )}
 
             {listing.google_rating && (
@@ -437,7 +474,7 @@ export default async function ListingPage({ params }: Props) {
             <PublicGbpClaimSidecar
               listingSlug={listing.slug}
               listingName={listing.name}
-              address={[(lst as { address?: string | null }).address, listing.city, listing.province_state, (lst as { postal_code?: string | null }).postal_code, listing.country].filter(Boolean).join(", ")}
+              address={[streetPublic ? (lst as { address?: string | null }).address : null, listing.city, listing.province_state, streetPublic ? (lst as { postal_code?: string | null }).postal_code : null, listing.country].filter(Boolean).join(", ")}
               listingClaimed={listing.claimed}
             />
           </div>
