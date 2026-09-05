@@ -48,6 +48,11 @@ export async function POST(req: NextRequest) {
   const email = (body.email || "").trim().toLowerCase();
   const phone = (body.phone || "").trim();
   const city = (body.city || "").trim();
+  // v16.8 — OPTIONAL street address + postal code. Blank stays blank: "" is written as
+  // NULL onto the row and passed through to dedup_match unchanged, so a submission that
+  // omits them behaves exactly as it did before (phone-exact ∪ domain-exact only).
+  const address = (body.address || "").trim();
+  const postal_code = (body.postal_code || "").trim();
   const province = (body.province || "").trim().toUpperCase();
   const country = (body.country || "").trim().toUpperCase();
   const websiteNorm = normalizeWebsiteUrl(body.website || "");
@@ -142,6 +147,8 @@ export async function POST(req: NextRequest) {
     slug,
     trade_category: TRADE_CATEGORY,
     listing_type: TRADE_CATEGORY,
+    address: address || null,
+    postal_code: postal_code || null,
     city,
     city_slug,
     region_slug: city_slug,

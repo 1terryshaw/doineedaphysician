@@ -4,7 +4,7 @@ import verticalConfig from "@/lib/vertical.config";
 import { CANADIAN_PROVINCES, US_STATES } from "@/lib/provinces";
 type Status = "idle" | "sending" | "created" | "matched" | "error";
 export default function AddBusinessForm() {
-  const [form, setForm] = useState({ business_name: "", gbp_url: "", email: "", phone: "", city: "", province: "", country: "", website: "" });
+  const [form, setForm] = useState({ business_name: "", gbp_url: "", email: "", phone: "", address: "", postal_code: "", city: "", province: "", country: "", website: "" });
   const [status, setStatus] = useState<Status>("idle");
   const [errorMsg, setErrorMsg] = useState("");
   const [matchedName, setMatchedName] = useState("");
@@ -37,6 +37,16 @@ export default function AddBusinessForm() {
       </div>
       <div><label className={labelClass} htmlFor="city">City {req}</label><input id="city" type="text" required value={form.city} onChange={(e) => set("city", e.target.value)} className={inputClass} /></div>
       <div><label className={labelClass} htmlFor="website">Website URL <span className="text-gray-400">(optional)</span></label><input id="website" type="text" inputMode="url" placeholder="www.yourbusiness.com" value={form.website} onChange={(e) => set("website", e.target.value)} className={inputClass} /></div>
+      {/* v16.8 — STREET ADDRESS + POSTAL CODE. Both OPTIONAL: no `required`, no client
+          validation, and a blank submit posts "" so the route behaves exactly as it did
+          before. They feed TWO things: the dedup matcher's postal/street retrieval arms
+          (dead while the route passed empty strings) and the public NAP block, which is
+          gated per row by `show_address` — collecting is not publishing. */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div><label className={labelClass} htmlFor="address">Street address <span className="text-gray-400">(optional)</span></label><input id="address" type="text" autoComplete="street-address" placeholder="123 Main St" value={form.address} onChange={(e) => set("address", e.target.value)} className={inputClass} /></div>
+        <div><label className={labelClass} htmlFor="postal_code">Postal / ZIP code <span className="text-gray-400">(optional)</span></label><input id="postal_code" type="text" autoComplete="postal-code" value={form.postal_code} onChange={(e) => set("postal_code", e.target.value)} className={inputClass} /></div>
+      </div>
+      <p className="text-xs text-gray-500 mt-1">Optional, and it helps: an address and postal code let us match you to a listing we already have instead of creating a second one.</p>
       {status === "error" && <p className="text-red-600 text-sm" role="alert">{errorMsg}</p>}
       <button type="submit" disabled={status === "sending"} style={{ backgroundColor: verticalConfig.primaryColor }} className="w-full px-4 py-2.5 rounded-lg text-white text-sm font-semibold disabled:opacity-50">{status === "sending" ? "Submitting…" : "Add my business"}</button>
     </form>
