@@ -2,6 +2,7 @@ import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import verticalConfig from "@/lib/vertical.config";
 import { getListingsByProvincePaged, getRegionTotal, REGION_PAGE_SIZE } from "@/lib/supabase";
+import { provinceRowCount } from "@/lib/hub-gate";
 import ListingCard from "@/components/ListingCard";
 import Pagination from "@/components/Pagination";
 import { regionBreadcrumbSchema, regionCollectionPageSchema, localizeFaqs } from "@/lib/seo";
@@ -50,8 +51,21 @@ export default async function RegionPage({ params, searchParams }: Props) {
   ]);
   const totalPages = Math.max(1, Math.ceil(total / REGION_PAGE_SIZE));
 
-  // Out-of-range page → 404 rather than a confusing empty list. Page 1 always renders.
+  // Out-of-range page → 404 rather than a confusing empty list.
   if (page > 1 && listings.length === 0) notFound();
+
+  // EMPTY-HUB GATE — empty-city-hubs-fan-v1 (2026-09-07), K200. Page 1 used to render
+  // "No physicians in {X} yet. Check back soon!" at HTTP 200, indexable and name-bearing,
+  // for all 60 Canadian city hubs and all 13 Canadian province hubs on a corpus that
+  // holds ZERO CA rows. A known-but-empty hub must 404.
+  //
+  // The re-check is not redundant: getListingsByProvincePaged() SWALLOWS its query error
+  // and returns [], so `listings.length === 0` alone would 404 every live hub during a
+  // transient DB fault. provinceRowCount() THROWS on a real error and returns null
+  // (never 0) on Next's prerender bailout.
+  if (listings.length === 0 && (await provinceRowCount(regionData.province)) === 0) {
+    notFound();
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-12">

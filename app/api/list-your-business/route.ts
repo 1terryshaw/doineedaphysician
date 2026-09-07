@@ -4,11 +4,15 @@ import { generateToken } from "@/lib/auth";
 import { sendClaimEmail, sendAddBusinessEmail } from "@/lib/email";
 import { normalizeGbpUrl } from "@/lib/gbp-url";
 import { normalizeWebsiteUrl } from "@/lib/url-normalize";
+import { CANADIAN_PROVINCES, US_STATES } from "@/lib/provinces";
 
 export const dynamic = "force-dynamic";
 
 const RATE_LIMIT = 3; // max self-serve submissions per IP / 24h
 const VALID_COUNTRIES = new Set(["US", "CA"]);
+const VALID_PROVINCE_CODES = new Set(
+  [...CANADIAN_PROVINCES, ...US_STATES].map((r) => r.code.toUpperCase())
+);
 
 // Single-trade vertical: the trade is fixed, not chosen on the form.
 const TRADE_CATEGORY = "therapist";
@@ -62,6 +66,11 @@ export async function POST(req: NextRequest) {
   if (!business_name || !email || !phone || !city || !province || !country) return NextResponse.json({ error: "Please fill in all required fields." }, { status: 400 });
   if (!websiteNorm.ok) return NextResponse.json({ error: "Please enter a valid website (e.g. www.yourbusiness.com) or leave it blank." }, { status: 400 });
   if (!VALID_COUNTRIES.has(country)) return NextResponse.json({ error: "Please choose a valid country." }, { status: 400 });
+  // The province/state code is a ROUTING KEY on this table (it becomes both
+  // province_state and region_slug), so it cannot be free text from an API caller —
+  // the form is a <select>, but this endpoint is public. Fail closed on anything that
+  // is not a code this site serves. (empty-city-hubs-fan-v1, F4, 2026-09-07)
+  if (!VALID_PROVINCE_CODES.has(province)) return NextResponse.json({ error: "Please choose a valid state or province." }, { status: 400 });
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return NextResponse.json({ error: "Please enter a valid email address." }, { status: 400 });
 
   const ip = clientIp(req);
@@ -151,7 +160,17 @@ export async function POST(req: NextRequest) {
     postal_code: postal_code || null,
     city,
     city_slug,
-    region_slug: city_slug,
+    // STATE GRAIN — empty-city-hubs-fan-v1 (F4, 2026-09-07), K200. This wrote a CITY key
+
+    // into this table's STATE key (physician_listings is 100.0% two-letter region_slug — a deliberate
+
+    // loader mode, not a defect), so a self-serve row was invisible to its own hub.
+
+    // Latent (0 such rows today); it fires on the first submission. The city key is
+
+    // `city_slug`, written above.
+
+    region_slug: province.toLowerCase(),
     province_state: province,
     country,
     email,

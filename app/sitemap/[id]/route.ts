@@ -1,5 +1,6 @@
 import verticalConfig from "@/lib/vertical.config";
-import { getListingsRange, supabaseAdmin } from "@/lib/supabase";
+import { getListingsRange } from "@/lib/supabase";
+import { getSitemapHubs } from "@/lib/sitemap-hubs";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -41,10 +42,16 @@ async function renderSitemap(
   const id = Number(match[1]);
 
   const baseUrl = `https://${verticalConfig.domain}`;
+  // HUBS + CITY PAGES — empty-city-hubs-fan-v1 (2026-09-07). Derived by
+  // lib/sitemap-hubs.ts, which mirrors the serving reads exactly. Counted into
+  // `headers` because they occupy chunk 0: app/sitemap.xml computes the SAME number,
+  // and if the two disagree the chunk offsets slide and listings drop or duplicate.
+  const { regionPaths, cityPaths } = await getSitemapHubs();
   const headers =
     STATIC_ENTRIES.length +
     verticalConfig.categoryLabels.length +
-    verticalConfig.regions.length;
+    regionPaths.length +
+    cityPaths.length;
   const firstChunkListingCapacity = Math.max(0, CHUNK_SIZE - headers);
 
   const offset =
@@ -64,36 +71,11 @@ async function renderSitemap(
     for (const cat of verticalConfig.categoryLabels) {
       parts.push(urlEntry(`${baseUrl}/specialty/${cat.slug}`, now, "weekly", "0.7"));
     }
-    for (const region of verticalConfig.regions) {
-      parts.push(urlEntry(`${baseUrl}/${region.slug}`, now, "daily", "0.8"));
+    for (const path of regionPaths) {
+      parts.push(urlEntry(`${baseUrl}${path}`, now, "daily", "0.8"));
     }
-    // City pages (/{PROV}/{city}) — CA only. F-α.3 sweep.
-    // Inline distinct query: ~50-150 pairs per repo, well below chunk capacity.
-    const { data: cityRows, error: cityRowsError } = await supabaseAdmin
-      .from("physician_listings")
-      .select("province_state, region_slug")
-      .eq("country", "CA")
-      .neq("is_published", false)
-      .not("province_state", "is", null)
-      .not("region_slug", "is", null)
-      .limit(1000000);
-    // FAIL-CLOSED (P1 2026-07-13): this query had NO error check — on failure it
-    // silently dropped these URLs from the chunk and still returned HTTP 200.
-    if (cityRowsError) {
-      throw new Error(
-        `sitemap cityRows query failed: ${(cityRowsError as { message?: string })?.message ?? "unknown"}`
-      );
-    }
-    const seenCity = new Set<string>();
-    const cityPairs: Array<{ province_state: string; region_slug: string }> = [];
-    for (const row of cityRows ?? []) {
-      const key = `${row.province_state}/${row.region_slug}`;
-      if (seenCity.has(key)) continue;
-      seenCity.add(key);
-      cityPairs.push(row as { province_state: string; region_slug: string });
-    }
-    for (const c of cityPairs) {
-      parts.push(urlEntry(`${baseUrl}/${c.province_state}/${c.region_slug}`, now, "weekly", "0.7"));
+    for (const path of cityPaths) {
+      parts.push(urlEntry(`${baseUrl}${path}`, now, "weekly", "0.7"));
     }
   }
 

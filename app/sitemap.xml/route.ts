@@ -1,5 +1,6 @@
 import verticalConfig from "@/lib/vertical.config";
 import { getListingsCount } from "@/lib/supabase";
+import { getSitemapHubs } from "@/lib/sitemap-hubs";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -13,10 +14,14 @@ async function renderSitemap() {
   const baseUrl = `https://${verticalConfig.domain}`;
 
   const listingCount = await getListingsCount();
+  // MUST match app/sitemap/[id]/route.ts's `headers` exactly — same helper, same
+  // predicates. The index SIZES the chunks; a disagreement slides every offset.
+  const { regionPaths, cityPaths } = await getSitemapHubs();
   const headers =
     STATIC_PATH_COUNT +
     verticalConfig.categoryLabels.length +
-    verticalConfig.regions.length;
+    regionPaths.length +
+    cityPaths.length;
   const firstChunkListingCapacity = Math.max(0, CHUNK_SIZE - headers);
   const remainingListings = Math.max(0, listingCount - firstChunkListingCapacity);
   const remainingChunks = Math.ceil(remainingListings / CHUNK_SIZE);

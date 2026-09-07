@@ -89,77 +89,28 @@ const verticalConfig = {
   ],
 
   // === NATIONAL REGIONS ===
+  // REGION HUBS — empty-city-hubs-fan-v1 (F2, 2026-09-07). See K200.
+  //
+  // The 60 Canadian CITY hubs the donor template shipped (toronto, montreal,
+  // vancouver, …) were REMOVED. physician_listings is 115,456 rows, 100% US — ZERO CA — so every one of
+  // them rendered an indexable empty 200 and was advertised in the sitemap. No backfill
+  // would have filled them: this is a market mismatch, not a grain one, and the fix is
+  // curation.
+  //
+  // The 13 Canadian PROVINCE hubs (ab, bc, on, …) are DELIBERATELY KEPT. Terry's ruling
+  // 2026-09-07: gate state/province hubs, never remove them — they 404 while empty and
+  // self-revive the day CA rows land. Only city hubs are curated away.
   regions: [
     // Ontario
-    { slug: "toronto", label: "Toronto", province: "ON" },
-    { slug: "ottawa", label: "Ottawa", province: "ON" },
-    { slug: "mississauga", label: "Mississauga", province: "ON" },
-    { slug: "brampton", label: "Brampton", province: "ON" },
-    { slug: "hamilton", label: "Hamilton", province: "ON" },
-    { slug: "london-on", label: "London", province: "ON" },
-    { slug: "markham", label: "Markham", province: "ON" },
-    { slug: "vaughan", label: "Vaughan", province: "ON" },
-    { slug: "kitchener", label: "Kitchener", province: "ON" },
-    { slug: "windsor", label: "Windsor", province: "ON" },
-    { slug: "richmond-hill", label: "Richmond Hill", province: "ON" },
-    { slug: "oakville", label: "Oakville", province: "ON" },
-    { slug: "burlington", label: "Burlington", province: "ON" },
-    { slug: "barrie", label: "Barrie", province: "ON" },
-    { slug: "oshawa", label: "Oshawa", province: "ON" },
-    { slug: "st-catharines", label: "St. Catharines", province: "ON" },
-    { slug: "guelph", label: "Guelph", province: "ON" },
-    { slug: "cambridge", label: "Cambridge", province: "ON" },
-    { slug: "waterloo", label: "Waterloo", province: "ON" },
-    { slug: "kingston", label: "Kingston", province: "ON" },
-    { slug: "thunder-bay", label: "Thunder Bay", province: "ON" },
-    { slug: "sudbury", label: "Sudbury", province: "ON" },
-    { slug: "peterborough", label: "Peterborough", province: "ON" },
-    { slug: "niagara-falls", label: "Niagara Falls", province: "ON" },
     // British Columbia
-    { slug: "vancouver", label: "Vancouver", province: "BC" },
-    { slug: "surrey", label: "Surrey", province: "BC" },
-    { slug: "burnaby", label: "Burnaby", province: "BC" },
-    { slug: "richmond-bc", label: "Richmond", province: "BC" },
-    { slug: "kelowna", label: "Kelowna", province: "BC" },
-    { slug: "victoria", label: "Victoria", province: "BC" },
-    { slug: "nanaimo", label: "Nanaimo", province: "BC" },
-    { slug: "kamloops", label: "Kamloops", province: "BC" },
-    { slug: "abbotsford", label: "Abbotsford", province: "BC" },
-    { slug: "coquitlam", label: "Coquitlam", province: "BC" },
     // Alberta
-    { slug: "calgary", label: "Calgary", province: "AB" },
-    { slug: "edmonton", label: "Edmonton", province: "AB" },
-    { slug: "red-deer", label: "Red Deer", province: "AB" },
-    { slug: "lethbridge", label: "Lethbridge", province: "AB" },
-    { slug: "st-albert", label: "St. Albert", province: "AB" },
-    { slug: "medicine-hat", label: "Medicine Hat", province: "AB" },
-    { slug: "grande-prairie", label: "Grande Prairie", province: "AB" },
     // Quebec
-    { slug: "montreal", label: "Montreal", province: "QC" },
-    { slug: "quebec-city", label: "Quebec City", province: "QC" },
-    { slug: "laval", label: "Laval", province: "QC" },
-    { slug: "gatineau", label: "Gatineau", province: "QC" },
-    { slug: "longueuil", label: "Longueuil", province: "QC" },
-    { slug: "sherbrooke", label: "Sherbrooke", province: "QC" },
-    { slug: "trois-rivieres", label: "Trois-Rivières", province: "QC" },
     // Manitoba
-    { slug: "winnipeg", label: "Winnipeg", province: "MB" },
-    { slug: "brandon", label: "Brandon", province: "MB" },
     // Saskatchewan
-    { slug: "saskatoon", label: "Saskatoon", province: "SK" },
-    { slug: "regina", label: "Regina", province: "SK" },
     // Nova Scotia
-    { slug: "halifax", label: "Halifax", province: "NS" },
-    { slug: "dartmouth", label: "Dartmouth", province: "NS" },
-    { slug: "sydney-ns", label: "Sydney", province: "NS" },
     // New Brunswick
-    { slug: "saint-john", label: "Saint John", province: "NB" },
-    { slug: "moncton", label: "Moncton", province: "NB" },
-    { slug: "fredericton", label: "Fredericton", province: "NB" },
     // Newfoundland
-    { slug: "st-johns", label: "St. John's", province: "NL" },
     // PEI
-    { slug: "charlottetown", label: "Charlottetown", province: "PE" },
     { slug: "ab", label: "Alberta", province: "AB" },
     { slug: "bc", label: "British Columbia", province: "BC" },
     { slug: "mb", label: "Manitoba", province: "MB" },

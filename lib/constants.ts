@@ -4,9 +4,25 @@ import {
   getCityBySlug as _getCityBySlug,
 } from "./shared/cities";
 
+import { US_STATES } from "./provinces";
+
 import verticalConfig from "@/lib/vertical.config";
-// Cities sourced from canonical shared list
-export const CITIES = CANONICAL_CITIES.map((c) => ({
+// CITY TREE — empty-city-hubs-fan-v1 (F2, 2026-09-07). See K200.
+//
+// CANONICAL_CITIES is the shared CA-oriented list: 600 entries, every one of them in a
+// Canadian province. physician_listings is 100% US (115,456 rows, zero CA), so those pairs only ever
+// fed generateStaticParams with routes the zero-listing guard then 404s, and supplied
+// display names for cities this corpus does not have. Filtering to the subdivisions this
+// corpus actually serves retires all 600.
+//
+// Kept as a FILTER, not a hard-coded [], so a future CA seed repopulates it on its own.
+// US city pages are unaffected: they never matched this list (it is 100% CA) and get
+// their display name from deriveCityName()/the listing row.
+const SERVED_PROVINCE_CODES = new Set(US_STATES.map((s) => s.code.toUpperCase()));
+
+export const CITIES = CANONICAL_CITIES.filter((c) =>
+  SERVED_PROVINCE_CODES.has(c.province.toUpperCase())
+).map((c) => ({
   name: c.name,
   slug: c.slug,
   province: c.province,
