@@ -6,6 +6,11 @@ export const metadata: Metadata = {
   title: "Physician Specialties",
   description:
     "A quick guide to common physician specialties — from family medicine and internal medicine to cardiology, pediatrics, and surgery.",
+  // Self-canonical (static-canonical-fan-v1, donor stamper-donor-v16.9). This page set
+  // no `alternates`, so the canonical was inferred from whatever URL a crawler arrived
+  // on, while the page IS advertised in the sitemap. Relative, per the repo idiom:
+  // app/layout.tsx metadataBase (lib/seo.ts SITE_URL) resolves it to this site's origin.
+  alternates: { canonical: "/learn" },
 };
 
 const specialties = [
