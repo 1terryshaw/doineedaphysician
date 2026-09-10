@@ -4,6 +4,7 @@ import { generateToken } from "@/lib/auth";
 import { isOwnerTokenExpired } from "@/lib/owner-authorization";
 import { sendClaimEmail } from "@/lib/email";
 import { verticalKey } from "@/lib/claim-pitch";
+import { normalizeClaimSrc } from "@/lib/claim-attribution";
 
 export const dynamic = "force-dynamic";
 
@@ -138,7 +139,9 @@ export async function POST(request: NextRequest) {
     }
     // TDL #472 lead-to-claim attribution: if this claim came from a lead-pitch
     // (?src=lead&lid=<inquiryId>), log it to the shared claim_attribution table.
-    if (src) {
+    // claim-src-attribution-v1 (2026-09-10): normalize via the shared allowlist and write a
+    // row on EVERY claim — an absent src records 'unknown', never nothing.
+    {
       const cleanLid = typeof lid === "string" ? lid.replace(/^i-/, "") : null;
       // TDL #1047 — was an EXPLICIT DISCARD (`.then(undefined, () => undefined)`), the same shape
       // we killed on unsubscribe. NOT fail-closed: the claim itself already SUCCEEDED above, so
@@ -150,7 +153,7 @@ export async function POST(request: NextRequest) {
           lead_id: cleanLid || null,
           vertical: verticalKey(),
           listing_id: listing.id,
-          src,
+          src: normalizeClaimSrc(src),
           slug,
         });
       if (attrErr) {
