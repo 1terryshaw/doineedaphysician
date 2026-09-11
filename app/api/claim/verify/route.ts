@@ -6,10 +6,58 @@ import { logRepublishDecision } from "@/lib/republish-audit";
 
 export const dynamic = "force-dynamic";
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// GET DOES NOT WRITE. POST DOES. (recon-v1 §D step 4 · ruling R2 · fan 2026-09-11)
+//
+// This route used to expose the claim write — claimed=true, claimed_at, and (where the
+// repo carries the #1068 republish guard) the is_published false→true flip — as a GET,
+// and that GET's URL was what we MAILED to owners. Every link-safety rewriter, mail
+// scanner and inbox link previewer that prefetches URLs in inbound mail was therefore
+// able to complete a claim, and publish a listing, without the recipient ever opening
+// the message. The resulting row is byte-identical to a genuine claim, so it cannot be
+// told apart afterwards, let alone undone.
+//
+// The split below is the fix, and it is the plain HTTP contract: GET is safe, POST is
+// not. GET now only redirects to /claim/verify, the interstitial page, carrying the same
+// query string; the page shows the owner what they are about to claim and gives them one
+// button, which POSTs here. A scanner following the mailed link lands on a page and
+// stops. A human lands on the same page and clicks.
+//
+// TOKENS ALREADY IN THE WILD KEEP WORKING. The mailed URL is unchanged in shape and the
+// token is unchanged in meaning — an owner holding a link from weeks ago follows it, gets
+// bounced to the interstitial, and confirms. Nothing was invalidated.
+//
+// REDIRECTS FROM POST MUST BE 303, NOT 307. NextResponse.redirect() defaults to 307,
+// which PRESERVES the method — the browser would re-POST to /owner/<slug> and to
+// /claim/error, neither of which accepts a POST. 303 See Other is the status that turns a
+// POST result into a GET of the destination. Every redirect on this path says 303
+// explicitly for that reason; do not drop the argument.
+// ═══════════════════════════════════════════════════════════════════════════════
+
 export async function GET(request: NextRequest) {
+  // Zero reads, zero writes, zero DB access. Deliberately does NOT validate the token:
+  // there is nothing to protect yet, and validating here would only duplicate the two
+  // places that do it for real (the interstitial page, then POST below). Preserve the
+  // query string verbatim so the interstitial sees exactly what was mailed.
   const { searchParams } = new URL(request.url);
-  const token = searchParams.get("token");
-  const slug = searchParams.get("slug");
+  const siteUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+  const qs = searchParams.toString();
+  return NextResponse.redirect(`${siteUrl}/claim/verify${qs ? `?${qs}` : ""}`, 302);
+}
+
+export async function POST(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  // Accept the interstitial's form post, and fall back to the query string so a POST
+  // carrying its parameters either way behaves identically.
+  let token = searchParams.get("token");
+  let slug = searchParams.get("slug");
+  try {
+    const form = await request.formData();
+    token = (form.get("token") as string | null) ?? token;
+    slug = (form.get("slug") as string | null) ?? slug;
+  } catch {
+    // No body / not form-encoded — the query-string values above stand.
+  }
   const siteUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
   // Every dead end here is a real owner holding a link that stopped working. Carry the slug
   // so /claim/error can hand them a fresh one rather than only a "back to directory" link.
@@ -17,7 +65,7 @@ export async function GET(request: NextRequest) {
     `${siteUrl}/claim/error${s ? `?slug=${encodeURIComponent(s)}` : ""}`;
 
   if (!token || !slug) {
-    return NextResponse.redirect(claimError(slug));
+    return NextResponse.redirect(claimError(slug), 303);
   }
 
   const { data: listing, error } = await supabaseAdmin
@@ -27,11 +75,11 @@ export async function GET(request: NextRequest) {
     .single();
 
   if (error || !listing || listing.owner_auth_token !== token) {
-    return NextResponse.redirect(claimError(slug));
+    return NextResponse.redirect(claimError(slug), 303);
   }
 
   if (listing.owner_auth_token_expires_at && new Date(listing.owner_auth_token_expires_at).getTime() < Date.now()) {
-    return NextResponse.redirect(claimError(slug));
+    return NextResponse.redirect(claimError(slug), 303);
   }
 
   const now = new Date().toISOString();
@@ -121,11 +169,11 @@ export async function GET(request: NextRequest) {
 
   if (claimErr) {
     console.error(`[claim/verify] claim write FAILED for ${slug}: ${claimErr.message}`);
-    return NextResponse.redirect(claimError(slug));
+    return NextResponse.redirect(claimError(slug), 303);
   }
   if ((count ?? 0) === 0) {
     console.error(`[claim/verify] claim write matched 0 rows for ${slug} (id=${listing.id})`);
-    return NextResponse.redirect(claimError(slug));
+    return NextResponse.redirect(claimError(slug), 303);
   }
 
   // The claim is recorded but the listing is still hidden (DENY, or the audit did not land).
@@ -140,12 +188,12 @@ export async function GET(request: NextRequest) {
   // magic link still valid for an idempotent retry. The half-written state that case exists to
   // catch cannot occur on this path.
   if (heldAfterClaim) {
-    const heldResp = NextResponse.redirect(`${siteUrl}/claim/held/${slug}`);
+    const heldResp = NextResponse.redirect(`${siteUrl}/claim/held/${slug}`, 303);
     setAuthCookie(heldResp, token, slug);
     return heldResp;
   }
 
-  const response = NextResponse.redirect(`${siteUrl}/owner/${slug}`);
+  const response = NextResponse.redirect(`${siteUrl}/owner/${slug}`, 303);
   setAuthCookie(response, token, slug);
   return response;
 }
