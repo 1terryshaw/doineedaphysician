@@ -6,7 +6,7 @@ import { getCityBySlug, CITIES, PROVINCES } from "@/lib/constants";
 import ListingCard from "@/components/ListingCard";
 import verticalConfig from "@/lib/vertical.config";
 import FaqSection from "@/components/FaqSection";
-import { localizeFaqs } from "@/lib/seo";
+import { localizeFaqs, hubCollectionPageSchema, ITEM_LIST_CAP } from "@/lib/seo";
 
 const MEDICAL_DISCLAIMER =
   "The information here is for educational purposes only and is not medical advice. Consult a licensed healthcare provider about your specific situation.";
@@ -76,6 +76,19 @@ export default async function CityPage({ params }: Props) {
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-12">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(
+            hubCollectionPageSchema({
+              path: `/${region}/${city}`,
+              name: `Professionals in ${cityName}`,
+              total: listings.length,
+              items: listings.slice(0, ITEM_LIST_CAP).map((l) => ({ name: l.name ?? l.slug, path: `/directory/${l.slug}` })),
+            })
+          ),
+        }}
+      />
       <h1 className="text-3xl font-bold mb-2">
         Professionals in {cityName}
       </h1>
