@@ -61,7 +61,18 @@ const STATIC_ENTRIES: { path: string; changefreq: string; priority: string }[] =
 // 0..N are the static hubs plus the highest-tier listings — the ones worth a PRERENDER -> HIT.
 // Nothing else the 09-14 commit bought is touched (force-static, revalidate 86400, the 5,000-URL
 // split, per-child <lastmod>, the dropped max-age=0 header, the rethrow).
-const PRERENDER_HEAD_ROWS = 50_000;
+// 🔴 THIS VERTICAL PRERENDERS CHILD 0 ONLY. The fleet head is 50,000 rows; physician cannot afford
+// even that. Measured on physician_listings (115,456 published rows): ONE child's range read is
+// `Gather Merge -> top-N heapsort` over the WHOLE table — 128,847 shared buffers (~1 GB) and 5.9-7.5 s
+// per child with the database otherwise idle, because the route's 5-column ORDER BY
+// (tier_priority/featured/google_rating/name/id) has no supporting index, so every child re-sorts the
+// entire corpus. Two of those in parallel exceed PostgREST's 8 s statement timeout and the export dies
+// on /sitemap/1.xml and /sitemap/2.xml. Proven not to be this mission's doing: the PRE-PATCH commit
+// f254012 — the very build serving production since 09-14 21:43 — ERRORs on a ZERO-CHANGE rebuild.
+// So the build reads listings exactly once (child 0's capacity slice) and every listing child is
+// on-demand ISR, which is what this route did before 2026-09-14. The durable fix is the QUERY SHAPE,
+// not the head size, and it is owed fleet-wide.
+const PRERENDER_HEAD_ROWS = 0;
 const PRERENDER_HEAD_CHILDREN = 1 + Math.ceil(PRERENDER_HEAD_ROWS / CHILD_SIZE);
 // ── WHY THE CHILDREN ARE PRERENDERED AT ALL (2026-09-14, sitemap-cdn-sweep-v1) ──
 // (SUPERSEDED in extent 2026-09-15: it is the HEAD that is enumerated, not every child — see above.)
