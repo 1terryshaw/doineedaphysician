@@ -40,6 +40,20 @@ export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
   },
 });
 
+// Cacheable read client — same service-role key, but its fetch is ISR-cacheable
+// (`next.revalidate`) instead of `no-store`, so a statically prerendered route reading through it
+// can render. `no-store` DEFEATS prerender: Next raises "Dynamic server usage" and the route
+// silently falls back to dynamic, which is exactly how the sitemap routes stayed uncached while
+// carrying `force-static`. Used ONLY by the sitemap helpers; search, detail, owner and mutation
+// paths keep `supabaseAdmin` (no-store = always live).
+export const supabaseRead = createClient(supabaseUrl, supabaseServiceKey, {
+  global: {
+    fetch: (url, options = {}) => {
+      return fetch(url, { ...options, next: { revalidate: 86400 } });
+    },
+  },
+});
+
 // PostgREST caps unranged queries at 1000 rows. Loop .range() in 50000-row pages
 // to fetch the full result set. Factory pattern is required because Supabase
 // query builders cannot be reused after await.
@@ -598,7 +612,7 @@ export async function getListingsRange(offset: number, limit: number): Promise<S
   let from = offset;
   while (from < end) {
     const to = Math.min(from + PAGE_SIZE, end) - 1;
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabaseRead
       .from(LISTINGS_TABLE)
       .select("slug,updated_at,created_at")
       .in("country", ["CA", "US"])
@@ -687,7 +701,7 @@ export async function getSpecialtyListings(slug: string): Promise<Listing[]> {
 
 // HEAD-only count query for sitemap chunk planning. Avoids fetching row data.
 export async function getListingsCount(): Promise<number> {
-  const { count, error } = await supabaseAdmin
+  const { count, error } = await supabaseRead
     .from(LISTINGS_TABLE)
     .select("*", { count: "exact", head: true })
     .in("country", ["CA", "US"]).neq("is_published", false);
