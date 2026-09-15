@@ -45,7 +45,26 @@ const STATIC_ENTRIES: { path: string; changefreq: string; priority: string }[] =
   { path: "/learn", changefreq: "weekly", priority: "0.7" },
 ];
 
-// ── PRERENDER EVERY CHILD (2026-09-14, sitemap-cdn-sweep-v1) ──
+// ── SSG HEAD + ISR TAIL (2026-09-15, postflip-cleanup-and-sitemap-fix-v1) ──
+// The 2026-09-14 sweep enumerated EVERY child here. On a large vertical that is a full-SSG of a
+// large page set and it BREAKS THE BUILD: each child is a deep-OFFSET read behind this route's
+// 5-column ORDER BY over the whole corpus (1.2-3.7 s idle, measured), and every child runs
+// alongside thousands of page generations. Under that contention a read blows PostgREST's 8 s
+// statement timeout, 57014 becomes `Error occurred prerendering page "/sitemap/N.xml"`, and the
+// deployment ERRORs — so nothing else in the repo can ship either (proven: doineedabookkeeper
+// 4c4c2dd and doineedatherapist 2ceaf34 both ERROR on a ZERO-CHANGE rebuild of a commit that had
+// been green hours earlier — the failure is load-dependent, not code-dependent).
+//
+// So: prerender a bounded HEAD and leave the tail to on-demand ISR. `dynamicParams` stays true, so
+// a tail child still renders on request exactly as it did before 2026-09-14. The head is not an
+// arbitrary slice: this route orders by tier_priority / featured / google_rating, so children
+// 0..N are the static hubs plus the highest-tier listings — the ones worth a PRERENDER -> HIT.
+// Nothing else the 09-14 commit bought is touched (force-static, revalidate 86400, the 5,000-URL
+// split, per-child <lastmod>, the dropped max-age=0 header, the rethrow).
+const PRERENDER_HEAD_ROWS = 50_000;
+const PRERENDER_HEAD_CHILDREN = 1 + Math.ceil(PRERENDER_HEAD_ROWS / CHILD_SIZE);
+// ── WHY THE CHILDREN ARE PRERENDERED AT ALL (2026-09-14, sitemap-cdn-sweep-v1) ──
+// (SUPERSEDED in extent 2026-09-15: it is the HEAD that is enumerated, not every child — see above.)
 // On-demand ISR of this dynamic segment does NOT hold on Vercel: the first generation caches, but
 // every revalidated copy is stored already-stale — `x-vercel-cache: STALE` with `age` resetting on
 // every request and a function hop each time. Measured across this fleet at 215 KB children and at
@@ -62,7 +81,7 @@ export async function generateStaticParams(): Promise<{ id: string }[]> {
   const firstChunkListingCapacity = Math.max(0, CHILD_SIZE - headers);
   const remainingListings = Math.max(0, (await getListingsCount()) - firstChunkListingCapacity);
   const totalChunks = 1 + Math.ceil(remainingListings / CHILD_SIZE);
-  return Array.from({ length: totalChunks }, (_, i) => ({ id: `${i}.xml` }));
+  return Array.from({ length: Math.min(totalChunks, PRERENDER_HEAD_CHILDREN) }, (_, i) => ({ id: `${i}.xml` }));
 }
 
 function escapeXml(s: string): string {
