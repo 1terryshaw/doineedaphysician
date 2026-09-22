@@ -7,15 +7,24 @@ import { BrowseByArea } from "@/components/browse-by-area";
 import RegionHub, { type HubSection, type HubRegion } from "@/components/RegionHub";
 import { getRegionByProvinceCode, countryOfProvinceCode } from "@/lib/constants";
 import { websiteSearchSchema } from "@/lib/seo";
-import { getSpecialtyCounts, getRegionCounts } from "@/lib/supabase";
-export const dynamic = "force-dynamic";
-export const fetchCache = "force-no-store";
+import { getSpecialtyCountsCached, getRegionCountsCached } from "@/lib/supabase";
+// ISR (donor v16.25, TDL #1244). This page was `force-dynamic`, so every
+// request re-rendered it and any blip on the shared Supabase instance became a
+// user-visible 500 on the most valuable page of the site. It now renders from
+// cache and revalidates hourly; a failed revalidation serves the last good
+// render instead of an error.
+//
+// The reads go through supabaseCached, NOT supabaseAdmin. `revalidate` ALONE
+// does nothing here: a no-store fetch in the render keeps the route dynamic and
+// the conversion is silently inert.
+export const revalidate = 3600;
+export const fetchCache = "default-no-store";
 
 export const metadata: Metadata = {
   alternates: { canonical: "/" },
 };
 
-const fmt = (n: number) => new Intl.NumberFormat("en-US").format(n);
+const fmtCached = (n: number) => new Intl.NumberFormat("en-US").format(n);
 
 export default async function HomePage() {
   // WS1 (site-surfer day-3) — market-aware Browse-by-Area index. The heading
@@ -31,7 +40,7 @@ export default async function HomePage() {
   // handful exist fleet-wide) must not mint a SECOND chip in the other section.
   // The CODE decides the country, because the code is what picks the hub.
   const bbaByCode = new Map<string, { country: "CA" | "US"; region: HubRegion }>();
-  for (const c of await getRegionCounts()) {
+  for (const c of await getRegionCountsCached()) {
     const r = getRegionByProvinceCode(c.province_state);
     if (!r) continue; // unmapped code — would 404
     const prev = bbaByCode.get(r.slug);
@@ -51,7 +60,7 @@ export default async function HomePage() {
   if (bbaCa.length) regionSections.push({ country: "CA", label: "🇨🇦 Canada", regions: bbaCa });
   if (bbaUs.length) regionSections.push({ country: "US", label: "🇺🇸 United States", regions: bbaUs });
 
-  const counts = await getSpecialtyCounts();
+  const counts = await getSpecialtyCountsCached();
   return (
     <>
       <script
@@ -143,7 +152,7 @@ export default async function HomePage() {
                     {cat.description}
                   </span>
                   <span className="block text-xs font-medium mt-2 text-[#3B82F6]">
-                    {n > 0 ? `${fmt(n)} listed` : "Browse →"}
+                    {n > 0 ? `${fmtCached(n)} listed` : "Browse →"}
                   </span>
                 </Link>
               );

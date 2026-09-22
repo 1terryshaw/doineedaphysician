@@ -54,6 +54,36 @@ export const supabaseRead = createClient(supabaseUrl, supabaseServiceKey, {
   },
 });
 
+// ---- HOMEPAGE-ONLY cached read path (donor v16.25, TDL #1244) --------------
+//
+// `supabaseAdmin` pins `cache: "no-store"` on EVERY request. That is right for
+// claim / owner / admin / detail reads -- they must never serve a cached row --
+// and it is exactly why it CANNOT be reused by an ISR page: ONE no-store fetch
+// anywhere in a segment's render opts that whole segment into dynamic rendering.
+// Measured on the donor: removing `force-dynamic` and adding `revalidate = 3600`
+// left `/` as `f` (Dynamic) in the build output -- the edit was completely INERT,
+// and it looks shipped. Wrapping the call in `unstable_cache` does not help
+// either; the inner no-store fetch still marks the render dynamic. Only changing
+// the FETCH moves `/` to a static route.
+//
+// So the home page gets its OWN client, and nothing else may use it.
+// `supabaseAdmin` is byte-unchanged, so no existing read changes posture.
+//
+// The tag is what makes the cached read purgeable on claim/publish:
+// /api/admin/revalidate fires revalidateTag(HOME_LISTINGS_TAG) on every call.
+export const HOME_LISTINGS_TAG = "home:listings";
+export const HOME_REVALIDATE_SECONDS = 3600;
+
+export const supabaseCached = createClient(supabaseUrl, supabaseServiceKey, {
+  global: {
+    fetch: (url, options = {}) =>
+      fetch(url, {
+        ...options,
+        next: { revalidate: HOME_REVALIDATE_SECONDS, tags: [HOME_LISTINGS_TAG] },
+      } as RequestInit),
+  },
+});
+
 // PostgREST caps unranged queries at 1000 rows. Loop .range() in 50000-row pages
 // to fetch the full result set. Factory pattern is required because Supabase
 // query builders cannot be reused after await.
@@ -714,4 +744,60 @@ export async function getListingsCount(): Promise<number> {
     );
   }
   return count || 0;
+}
+
+// The HOME PAGE's copy of getSpecialtyCounts (TDL #1244, donor v16.25). Same query,
+// read through supabaseCached so it does not opt the ISR home page back into
+// dynamic rendering -- supabaseAdmin pins cache:"no-store", and ONE such fetch
+// anywhere in the render is enough to make the whole route `f` again.
+// DERIVED from this repo's own getSpecialtyCounts above, not stamped: if that one changes,
+// this one must be re-derived.
+export async function getSpecialtyCountsCached(): Promise<Record<string, number>> {
+  const { data, error } = await supabaseCached.rpc("physician_specialty_counts");
+  if (error) {
+    console.error("getSpecialtyCountsCached error:", error);
+    // FAIL-CLOSED under ISR (TDL #1244): a soft-empty result would be CACHED.
+    throw new Error(`getSpecialtyCountsCached failed: ${(error as { message?: string })?.message ?? "unknown"}`);
+  }
+  const out: Record<string, number> = {};
+  for (const r of (data as { slug: string; n: number }[] | null) || []) {
+    out[String(r.slug)] = Number(r.n) || 0;
+  }
+  return out;
+}
+
+// The HOME PAGE's copy of getRegionCounts (TDL #1244, donor v16.25). Same query,
+// read through supabaseCached so it does not opt the ISR home page back into
+// dynamic rendering -- supabaseAdmin pins cache:"no-store", and ONE such fetch
+// anywhere in the render is enough to make the whole route `f` again.
+// DERIVED from this repo's own getRegionCounts above, not stamped: if that one changes,
+// this one must be re-derived.
+// The process-memo on the original is deliberately NOT carried over: under
+// ISR the render itself is cached, so a second in-process TTL would only add
+// a staleness window nobody can purge.
+export async function getRegionCountsCached(): Promise<RegionCount[]> {
+  if (_regionCountsCache && Date.now() - _regionCountsCache.ts < REGION_COUNTS_TTL_MS) {
+    return _regionCountsCache.data;
+  }
+  const { data, error } = await supabaseCached
+    .from(`mv_${LISTINGS_TABLE}_regions`)
+    .select("country, province_state, n");
+  if (error) {
+    // FAIL-CLOSED (C2, getlistings-failclosed-fan-v1 2026-09-09). This returned the
+    // empty/zero value, which made a DB fault indistinguishable from a genuinely
+    // empty hub: the page served a 200 saying "nothing here", or a zero-row gate
+    // above it 404ed a live hub and ISR cached that 404. Log and rethrow —
+    // legit-empty is the K200/K205 gate's job, never this reader's.
+    rethrowPrerenderBailout(error);
+    console.error("getRegionCountsCached error:", error);
+    throw new Error(
+      `getRegionCountsCached failed: ${(error as { message?: string })?.message ?? "unknown"}`
+    );
+  }
+  const rows = (data || []).map((r) => ({
+    country: String(r.country),
+    province_state: String(r.province_state),
+    n: Number(r.n) || 0,
+  }));
+  return rows;
 }
