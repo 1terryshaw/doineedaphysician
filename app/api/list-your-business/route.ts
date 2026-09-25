@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin, LISTINGS_TABLE } from "@/lib/supabase";
+import { resolveGoogleBusinessProfileUrl } from "@/lib/gbp-connector";
 import { generateToken } from "@/lib/auth";
 import { sendClaimEmail, sendAddBusinessEmail } from "@/lib/email";
 import { normalizeGbpUrl } from "@/lib/gbp-url";
@@ -104,6 +105,22 @@ export async function POST(req: NextRequest) {
     gbp = { gbp_url: res.gbp_url, gbp_place_id: res.gbp_place_id, gbp_cid: res.gbp_cid };
   }
 
+  // claimant-edit-ux-stamp-v1 (door 3, audit §C.3): the add-business form used to store the pasted
+  // link in legacy gbp_url/gbp_place_id/gbp_cid but never google_place_id, so every self-serve owner
+  // who pasted it was stranded at claim time. Resolve it with the SAME connector gbp-connect uses
+  // (URL parsing + Google short-link redirects only — never a Places call) and write the feature-id
+  // or ChIJ to google_place_id. Unresolvable, or already on another listing (UNIQUE) → store no GBP
+  // fields at all; the owner connects from the dashboard after claiming. `gbp` (dedup) is unchanged.
+  const gbpInsert: { gbp_url: string | null; gbp_place_id: string | null; gbp_cid: string | null; google_place_id: string | null } =
+    { gbp_url: null, gbp_place_id: null, gbp_cid: null, google_place_id: null };
+  if (gbp_raw && gbp.gbp_url) {
+    const resolved = await resolveGoogleBusinessProfileUrl(gbp_raw);
+    if (resolved.ok) {
+      const { data: taken } = await supabaseAdmin.from(LISTINGS_TABLE).select("id").eq("google_place_id", resolved.placeId).limit(1);
+      if (!taken || taken.length === 0) Object.assign(gbpInsert, gbp, { google_place_id: resolved.placeId });
+    }
+  }
+
   // dedup — anti-hijack guard keys on the operative claim flag (`claimed`)
   type MatchedListing = { id: number; business_name: string | null; slug: string; claimed: boolean };
   let matched: MatchedListing | null = null;
@@ -188,9 +205,12 @@ export async function POST(req: NextRequest) {
     submitted_by_email: email,
     submitted_at: nowIso,
     submitted_ip: ip,
-    gbp_url: gbp.gbp_url,
-    gbp_place_id: gbp.gbp_place_id,
-    gbp_cid: gbp.gbp_cid,
+    // claimant-edit-ux-stamp-v1 (door 3): never a bare gbp_url — only with the google_place_id
+    // the canonical connector resolved from it (URL parsing only, no Places call).
+    gbp_url: gbpInsert.gbp_url,
+    gbp_place_id: gbpInsert.gbp_place_id,
+    gbp_cid: gbpInsert.gbp_cid,
+    google_place_id: gbpInsert.google_place_id,
   };
 
   const { error: insertError } = await supabaseAdmin.from(LISTINGS_TABLE).insert(insertRow);

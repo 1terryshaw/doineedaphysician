@@ -165,6 +165,8 @@ export default async function ListingPage({ params }: Props) {
   const geoEligible =
     geoRaw.geo_precision_m != null &&
     geoRaw.geo_precision_m <= 50 &&
+    // claimant-edit-ux-stamp-v1: an owner-edited location withholds the rooftop point (geo_stale).
+    (geoRaw as { geo_stale?: boolean | null }).geo_stale !== true &&
     Number.isFinite(geoLat) &&
     Number.isFinite(geoLng) &&
     !(geoLat === 0 && geoLng === 0);
