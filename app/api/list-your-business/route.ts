@@ -6,6 +6,7 @@ import { sendClaimEmail, sendAddBusinessEmail } from "@/lib/email";
 import { normalizeGbpUrl } from "@/lib/gbp-url";
 import { normalizeWebsiteUrl } from "@/lib/url-normalize";
 import { CANADIAN_PROVINCES, US_STATES } from "@/lib/provinces";
+import { nameHasPersonalEmail, NAME_EMAIL_MESSAGE } from "@/lib/name-email-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -65,6 +66,9 @@ export async function POST(req: NextRequest) {
   const gbp_raw = (body.gbp_url || "").trim();
 
   if (!business_name || !email || !phone || !city || !province || !country) return NextResponse.json({ error: "Please fill in all required fields." }, { status: 400 });
+  // name-guard-followthrough-v1 (K395 R1): say it at submit, not at verify. The DB guard refuses to
+  // publish a personal email inside the business name; public.name_email_class is the one rule.
+  if (await nameHasPersonalEmail(supabaseAdmin, business_name)) return NextResponse.json({ error: NAME_EMAIL_MESSAGE }, { status: 400 });
   if (!websiteNorm.ok) return NextResponse.json({ error: "Please enter a valid website (e.g. www.yourbusiness.com) or leave it blank." }, { status: 400 });
   if (!VALID_COUNTRIES.has(country)) return NextResponse.json({ error: "Please choose a valid country." }, { status: 400 });
   // The province/state code is a ROUTING KEY on this table (it becomes both
