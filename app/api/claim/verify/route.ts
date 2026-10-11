@@ -3,7 +3,7 @@ import { supabaseAdmin, LISTINGS_TABLE } from "@/lib/supabase";
 import { setAuthCookie } from "@/lib/auth";
 import { evaluateRepublish } from "@/lib/republish-guard";
 import { logRepublishDecision } from "@/lib/republish-audit";
-import { isNameEmailRefusal, withNameEmailReason } from "@/lib/name-email-guard";
+import { isNameEmailRefusal, withNameEmailReason, nameEmailClassForRow } from "@/lib/name-email-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -135,7 +135,7 @@ export async function POST(request: NextRequest) {
       npi: listing.npi,
       submitted_via: listing.submitted_via,
     };
-    const decision = evaluateRepublish(guardInput);
+    const decision = evaluateRepublish({ ...guardInput, name_email_class: await nameEmailClassForRow(supabaseAdmin, listing) });
 
     // AUDIT BEFORE FLIP, and the flip is gated on the audit landing. An unlogged flip is
     // unreconstructable, so a failed audit insert is treated as DENY (fail-closed) rather

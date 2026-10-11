@@ -16,6 +16,7 @@ import { supabaseAdmin, LISTINGS_TABLE } from "@/lib/supabase";
 import { setAuthCookie, generateToken } from "@/lib/auth";
 import { evaluateRepublish } from "@/lib/republish-guard";
 import { GENERIC_BODY, checkRequest, flags, parseBody, timingFloor } from "@/lib/claim-entry";
+import { nameEmailClassForRow } from "@/lib/name-email-guard";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -82,6 +83,7 @@ export async function POST(request: NextRequest) {
 
     // ── THE GUARD. Nothing else in this file may open is_published. ──────────────
     const decision = evaluateRepublish({
+      name_email_class: await nameEmailClassForRow(supabaseAdmin, listing),
       is_published: listing.is_published,
       deserve_reason: listing.deserve_reason,
       name: listing.name,
