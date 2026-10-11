@@ -44,7 +44,7 @@ export async function sendInquiryNotification(
   // TDL #455 smoke suppression: never dispatch real mail for test traffic.
   if (/tdl455canary/i.test(inquiry.email || "") || process.env.SMOKE_TEST === "1") {
     console.log(`[SMOKE] would-send: sendInquiryNotification -> ${ownerEmail} (suppressed)`);
-    return;
+    return { id: null as string | null, suppressed: true };
   }
   // Inquiry forwards go via the system Resend sender, NEVER the personal Gmail account.
   // Reply-To is the visitor's own address so a reply goes straight to the customer, not us.
@@ -55,11 +55,11 @@ export async function sendInquiryNotification(
     : `https://${host}`;
   const { Resend } = await import("resend");
   const resend = new Resend(process.env.RESEND_API_KEY);
-  const { error } = await resend.emails.send({
+  const { data: sent, error } = await resend.emails.send({
     from: `${verticalConfig.name} <notifications@smartwebsitemanagement.ca>`,
     to: ownerEmail,
     replyTo: inquiry.email,
-    subject: `New inquiry for ${listingName} on ${verticalConfig.name}`,
+    subject: `${listingSlug?.startsWith("zz-test-") ? "[TEST] " : ""}New inquiry for ${listingName} on ${verticalConfig.name}`,
     html: `
         <h2>New Inquiry for ${listingName}</h2>
         <p><strong>From:</strong> ${inquiry.name} (${inquiry.email}${inquiry.phone ? `, ${inquiry.phone}` : ""})</p>
@@ -92,4 +92,5 @@ export async function sendInquiryNotification(
     console.error("sendInquiryNotification (resend) failed:", error);
     throw new Error(error.message);
   }
+  return { id: (sent?.id as string | undefined) ?? null, suppressed: false };
 }

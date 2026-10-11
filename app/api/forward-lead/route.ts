@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin, LISTINGS_TABLE, INQUIRIES_TABLE } from "@/lib/supabase";
 import { sendInquiryNotification } from "@/lib/email";
+import { recordDelivery } from "@/lib/inquiry-delivery";
 import { sendLeadForwardEmail, sendInquiryConfirmation, sendClaimPitchForward } from "@/lib/resend";
 import { can } from "@/lib/tier-capabilities";
 import verticalConfig from "@/lib/vertical.config";
@@ -141,6 +142,7 @@ export async function POST(request: NextRequest) {
 
   // No deliverable address: surface to admin (manual-bridge queue), do not forward.
   if (status === "needs_bridging") {
+    await recordDelivery({ inquiryId, slug: listingSlug, forwardTo: null, status: "needs_bridging" });
     return NextResponse.json({ success: true, forwarded: false });
   }
 
@@ -181,6 +183,13 @@ export async function POST(request: NextRequest) {
 
     const emailOk =
       emailResult.status === "fulfilled" && emailResult.value.success;
+
+    await recordDelivery({
+      inquiryId, slug: listingSlug, forwardTo, ownerEmail: listing.owner_email,
+      status: emailOk ? "sent" : "failed",
+      messageId: emailResult.status === "fulfilled" ? emailResult.value.id ?? null : null,
+      error: emailResult.status === "fulfilled" ? emailResult.value.error ?? null : String(emailResult.reason).slice(0, 160),
+    });
 
     let deliveryStatus: string;
     if (emailOk) deliveryStatus = "email_sent";
@@ -229,6 +238,7 @@ export async function POST(request: NextRequest) {
   // notification. The lead ALWAYS forwards; only the CTA is gated.
   const caslReady = !!(process.env.CASL_POSTAL_ADDRESS || "").trim();
   let pitched = false;
+  let pitchResultId: string | null = null;
 
   if (shouldPitch(listing) && caslReady && !(await isSuppressed(forwardTo))) {
     // TDL #1047 — `last_claim_pitch_at` is the CASL anti-spam THROTTLE that shouldPitch()
@@ -261,6 +271,7 @@ export async function POST(request: NextRequest) {
       });
       if (pitchResult.success && pitchResult.pitched) {
         pitched = true;
+        pitchResultId = pitchResult.id ?? null;
       }
       if (pitchResult.suppressedSmoke) {
         // Smoke suppressed the real send — release the reservation.
@@ -277,13 +288,25 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  if (!pitched) {
-    await sendInquiryNotification(forwardTo, listing.name, {
-      name,
-      email,
-      phone,
-      message,
-    }, listingSlug).catch(() => {});
+  // legacy-inquiry-obs: no more swallowed send. Await, require a provider id, record the outcome on the
+  // inquiry row, alert the operator on failure. The visitor response below is unchanged (the row is stored).
+  if (pitched) {
+    await recordDelivery({ inquiryId, slug: listingSlug, forwardTo, ownerEmail: listing.owner_email, status: "sent", messageId: pitchResultId });
+  } else {
+    let plainId: string | null = null;
+    let plainErr: string | null = null;
+    let plainSuppressed = false;
+    try {
+      const r = await sendInquiryNotification(forwardTo, listing.name, { name, email, phone, message }, listingSlug);
+      plainId = r?.id ?? null;
+      plainSuppressed = !!r?.suppressed;
+    } catch (e) {
+      plainErr = e instanceof Error ? e.message.slice(0, 160) : "send threw";
+    }
+    await recordDelivery({
+      inquiryId, slug: listingSlug, forwardTo, ownerEmail: listing.owner_email,
+      status: plainErr ? "failed" : "sent", messageId: plainId, error: plainErr, suppressed: plainSuppressed,
+    });
   }
 
   return NextResponse.json({ success: true, forwarded: true, pitched });

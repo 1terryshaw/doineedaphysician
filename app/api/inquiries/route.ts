@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin, LISTINGS_TABLE, INQUIRIES_TABLE } from "@/lib/supabase";
 import { sendInquiryNotification } from "@/lib/email";
+import { recordDelivery } from "@/lib/inquiry-delivery";
 import {
   shouldSilentDrop,
   isValidEmail,
@@ -60,7 +61,7 @@ export async function POST(request: NextRequest) {
       message,
       status,
     })
-    .select("reply_token")
+    .select("id, reply_token")
     .single();
 
   if (status === "spam_review") {
@@ -68,17 +69,32 @@ export async function POST(request: NextRequest) {
   }
 
   if (status === "needs_bridging") {
+    await recordDelivery({ inquiryId: inquiry?.id, slug: listingSlug, forwardTo: null, status: "needs_bridging" });
     return NextResponse.json({ success: true, forwarded: false });
   }
 
   // status === "new": forward to the validated address only.
-  await sendInquiryNotification(fwdEmail!, listing.name, {
-    name,
-    email,
-    phone,
-    message,
-    replyToken: inquiry?.reply_token,
-  }, listingSlug);
+  // legacy-inquiry-obs: record the outcome; alert the operator on failure; response unchanged.
+  let sentId: string | null = null;
+  let sentErr: string | null = null;
+  let sentSuppressed = false;
+  try {
+    const r = await sendInquiryNotification(fwdEmail!, listing.name, {
+      name,
+      email,
+      phone,
+      message,
+      replyToken: inquiry?.reply_token,
+    }, listingSlug);
+    sentId = r?.id ?? null;
+    sentSuppressed = !!r?.suppressed;
+  } catch (e) {
+    sentErr = e instanceof Error ? e.message.slice(0, 160) : "send threw";
+  }
+  await recordDelivery({
+    inquiryId: inquiry?.id, slug: listingSlug, forwardTo: fwdEmail, ownerEmail: listing.owner_email,
+    status: sentErr ? "failed" : "sent", messageId: sentId, error: sentErr, suppressed: sentSuppressed,
+  });
 
   return NextResponse.json({ success: true, forwarded: true });
 }

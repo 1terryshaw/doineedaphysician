@@ -28,7 +28,7 @@ interface LeadEmailData {
 
 export async function sendLeadForwardEmail(
   data: LeadEmailData
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; id?: string | null; error?: string }> {
   const directoryName = verticalConfig.name;
   const domain = verticalConfig.domain;
   const displayDomain = verticalConfig.displayDomain;
@@ -80,7 +80,7 @@ export async function sendLeadForwardEmail(
 </div>`;
 
   try {
-    const { error } = await getResend().emails.send({
+    const { data: __sent, error } = await getResend().emails.send({
       from: `${directoryName} <${FROM_ADDRESS}>`,
       to: data.businessEmail,
       replyTo: data.visitorEmail,
@@ -92,7 +92,7 @@ export async function sendLeadForwardEmail(
       console.error("Resend error:", error);
       return { success: false, error: error.message };
     }
-    return { success: true };
+    return { success: true, id: (__sent?.id as string | undefined) ?? null };
   } catch (err: any) {
     console.error("Resend exception:", err);
     return { success: false, error: err.message };
@@ -183,7 +183,7 @@ interface PitchForwardData {
  */
 export async function sendClaimPitchForward(
   data: PitchForwardData
-): Promise<{ success: boolean; error?: string; pitched?: boolean; suppressedSmoke?: boolean }> {
+): Promise<{ success: boolean; id?: string | null; error?: string; pitched?: boolean; suppressedSmoke?: boolean }> {
   // Smoke suppression — never dispatch real mail for test traffic.
   if (
     /tdl47\dcanary|tdl455canary/i.test(data.visitorEmail || "") ||
@@ -295,7 +295,7 @@ export async function sendClaimPitchForward(
     // Self-contained client (not the repo's getResend() — some verticals export a
     // module-level `resend` const instead, so the helper name isn't portable; TDL #472).
     const resend = new Resend(process.env.RESEND_API_KEY);
-    const { error } = await resend.emails.send({
+    const { data: __sent, error } = await resend.emails.send({
       from: `${directoryName} <${FROM_ADDRESS}>`,
       to: data.to,
       replyTo: data.visitorEmail,
@@ -308,7 +308,7 @@ export async function sendClaimPitchForward(
       console.error("sendClaimPitchForward Resend error:", error);
       return { success: false, error: error.message, pitched: pitch };
     }
-    return { success: true, pitched: pitch };
+    return { success: true, pitched: pitch, id: (__sent?.id as string | undefined) ?? null };
   } catch (err: any) {
     console.error("sendClaimPitchForward exception:", err);
     return { success: false, error: err?.message, pitched: pitch };
