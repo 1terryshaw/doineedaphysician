@@ -2,11 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import AddBusinessForm from "@/components/AddBusinessForm";
 import verticalConfig from "@/lib/vertical.config";
+import { HAS_LIST_YOUR_BUSINESS } from "@/lib/add-business";
+import { notFound } from "next/navigation";
 export const metadata: Metadata = {
   title: `Add Your Business | ${verticalConfig.name}`,
   description: `Add your physician to ${verticalConfig.name} for free. Free listing, takes about 2 minutes.`,
 };
 export default function ListYourBusinessPage() {
+  if (!HAS_LIST_YOUR_BUSINESS) notFound();
   return (
     <section className="bg-gradient-to-b from-gray-50 to-white">
       <div className="max-w-7xl mx-auto px-4 py-12"><div className="max-w-xl mx-auto">

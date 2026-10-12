@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import verticalConfig from "@/lib/vertical.config";
 import { emitEvent } from "@/components/AnalyticsTracker";
+import { HAS_LIST_YOUR_BUSINESS } from "@/lib/add-business";
 
 type ResolveState = "idle" | "checking" | "success" | "error";
 
@@ -57,7 +58,7 @@ export default function ClaimOrAddHub() {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-5 lg:grid-cols-2" aria-label="Choose a route">
+      <div className={`grid gap-5 ${HAS_LIST_YOUR_BUSINESS ? "lg:grid-cols-2" : ""}`} aria-label="Choose a route">
         <section className="rounded-2xl border-2 border-slate-200 bg-white p-6 shadow-sm" aria-labelledby="existing-listing-heading">
           <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Route 1</p>
           <h2 id="existing-listing-heading" className="mt-2 text-2xl font-bold text-slate-900">Claim an existing listing</h2>
@@ -88,6 +89,7 @@ export default function ClaimOrAddHub() {
           </details>
         </section>
 
+        {HAS_LIST_YOUR_BUSINESS && (
         <section className="rounded-2xl border-2 border-slate-200 bg-slate-50 p-6 shadow-sm" aria-labelledby="missing-business-heading">
           <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">Route 2</p>
           <h2 id="missing-business-heading" className="mt-2 text-2xl font-bold text-slate-900">Business not listed?</h2>
@@ -95,6 +97,7 @@ export default function ClaimOrAddHub() {
           <Link href="/list-your-business" onClick={() => { selectRoute("missing_business_route_selected"); emitEvent({ surface: "directory", event_type: "listing_clicked", payload: { feature: "claim_add_hub", action: "add_business_cta_clicked" } }); }} className="mt-6 inline-flex min-h-12 w-full items-center justify-center rounded-lg px-5 py-3 font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 focus-visible:ring-offset-2" style={{ backgroundColor: verticalConfig.primaryColor }}>Add Your Business</Link>
           <p className="mt-3 text-sm text-slate-500">The add-business form includes an optional Google Maps or Business Profile link.</p>
         </section>
+        )}
       </div>
     </div>
   );

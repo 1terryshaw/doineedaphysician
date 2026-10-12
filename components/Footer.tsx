@@ -1,5 +1,6 @@
 import Link from "next/link";
 import verticalConfig from "@/lib/vertical.config";
+import { HAS_LIST_YOUR_BUSINESS } from "@/lib/add-business";
 
 export default function Footer() {
   return (
@@ -21,7 +22,7 @@ export default function Footer() {
                   Directory
                 </Link>
               </li>
-              <li><Link href="/list-your-business" className="hover:text-white">Add my physician</Link></li>
+              {HAS_LIST_YOUR_BUSINESS && <li><Link href="/list-your-business" className="hover:text-white">Add my physician</Link></li>}
               <li>
                 <Link href="/pricing" className="hover:text-white">
                   Pricing

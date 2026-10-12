@@ -28,6 +28,7 @@ import ReviewShowcase from "@/components/ReviewShowcase";
 import FaqSection from "@/components/FaqSection";
 import { detailBreadcrumbSchema, localizeFaqs, OG_DEFAULT_IMAGE } from "@/lib/seo";
 import { getRegionBySlug } from "@/lib/constants";
+import { HAS_LIST_YOUR_BUSINESS } from "@/lib/add-business";
 
 const MEDICAL_DISCLAIMER =
   "The information here is for educational purposes only and is not medical advice. Consult a licensed healthcare provider about your specific situation.";
@@ -522,7 +523,7 @@ export default async function ListingPage({ params }: Props) {
                 hasReviews={Number(listing.google_review_count) > 0}
               />
             )}
-            <p className="mt-4 text-sm text-gray-500">Run a different physician{listing.city ? ` in ${listing.city}` : ""}? <Link href="/list-your-business" className="underline" style={{ color: verticalConfig.primaryColor }}>Add your business &rarr;</Link></p></>
+            {HAS_LIST_YOUR_BUSINESS && <p className="mt-4 text-sm text-gray-500">Run a different physician{listing.city ? ` in ${listing.city}` : ""}? <Link href="/list-your-business" className="underline" style={{ color: verticalConfig.primaryColor }}>Add your business &rarr;</Link></p>}</>
             <PublicGbpClaimSidecar
               listingSlug={listing.slug}
               listingName={listing.name}

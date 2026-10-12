@@ -19,6 +19,7 @@ import AddBusinessBanner from "@/components/AddBusinessBanner";
 import SearchBar from "@/components/SearchBar";
 import Pagination from "@/components/Pagination";
 import RegionHub, { type HubSection, type HubRegion } from "@/components/RegionHub";
+import { HAS_LIST_YOUR_BUSINESS } from "@/lib/add-business";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -71,7 +72,7 @@ export default async function DirectoryPage({
 
     return (
       <div className="max-w-7xl mx-auto px-4 py-12">
-        <AddBusinessBanner />
+        {HAS_LIST_YOUR_BUSINESS && <AddBusinessBanner />}
         <h1 className="text-3xl font-bold mb-6 text-gray-900">Find a Physician</h1>
         <div className="mb-6">
           <SearchBar variant="directory" regions={runtimeRegions.length > 0 ? runtimeRegions : undefined} />

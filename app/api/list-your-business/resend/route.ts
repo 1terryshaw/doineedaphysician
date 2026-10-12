@@ -2,10 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin, LISTINGS_TABLE } from "@/lib/supabase";
 import { generateToken } from "@/lib/auth";
 import { sendAddBusinessEmail } from "@/lib/email";
+import { HAS_LIST_YOUR_BUSINESS } from "@/lib/add-business";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
+  if (!HAS_LIST_YOUR_BUSINESS) return NextResponse.json({ error: "Not found" }, { status: 404 });
   let slug = "";
   try { ({ slug } = await req.json()); } catch { return NextResponse.json({ success: true }); }
   if (!slug) return NextResponse.json({ success: true });
