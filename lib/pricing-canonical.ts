@@ -1,9 +1,9 @@
-// pricing-version: 2026-06-18-596-ladder
+// pricing-version: 2026-10-30-1362-ladder
 // CANONICAL PRICING — single source of truth
 // All directory pricing pages, UpgradeModal, and Stripe checkout flows import from here.
 // DO NOT hardcode prices, tier names, or feature lists elsewhere.
 
-export type TierId = 'verified' | 'reviews_plus' | 'website';
+export type TierId = 'verified' | 'reviews_plus' | 'website_basic' | 'website';
 
 export interface CTA {
   label: string;
@@ -12,8 +12,9 @@ export interface CTA {
    * - 'direct' → Stripe Checkout with no trial
    * - 'free' → no Stripe; activates free tier on claim
    * - 'preview' → no Stripe; requests a free website preview (owner login required)
+   * - 'buy' → Website buy now: empire-billing Path B checkout (build → owner approves → publish)
    */
-  mode: 'trial' | 'direct' | 'free' | 'preview';
+  mode: 'trial' | 'direct' | 'free' | 'preview' | 'buy';
 }
 
 export interface Tier {
@@ -39,6 +40,10 @@ export interface Tier {
   monthlyOnly?: boolean;
   /** Small print under the CTA. */
   footnote?: string;
+  /** Tier slug sent to /api/billing-redirect when it differs from `id` (empire-billing's website plan slugs). */
+  billingTier?: 'website' | 'website_receptionist';
+  /** false = the annual price is shown but not on sale yet. */
+  annualPurchasable?: boolean;
 }
 
 export const TIERS: Record<TierId, Tier> = {
@@ -90,20 +95,44 @@ export const TIERS: Record<TierId, Tier> = {
     secondaryCta: { label: 'Skip trial, pay now — $9/mo', mode: 'direct' },
     anchored: true,
   },
-  // swm-website-offer-99-v2 (CEO rulings R1–R8, 2026-10-02): the single Website offer is $99 USD/mo,
-  // free preview first. The $49 SiteForge tier / 30-day trial / skip-trial link are retired.
-  // Card copy is R8 verbatim. The CTA never checks out from the modal — it requests a preview.
+  // fleet-pricing-ladder-audit-repair-v1 (TDL #1362): the approved ladder — Website $49 is the ENTRY website, Website + AI Receptionist $99 the UPGRADE.
+  // Each: free preview first (Path A) or buy now (Path B, empire-billing sells; nothing goes live until the owner approves).
+  // The $49 card lists only what this host delivers on the 'website' tier — never Leads Plus (not implemented on this host).
+  website_basic: {
+    id: 'website_basic',
+    name: 'Website',
+    subtitle: 'Your own website — start here',
+    priceMonthlyUSD: 49,
+    priceAnnualUSD: 490,
+    annualPurchasable: true,
+    stripeProductId: 'prod_UVCwbO2cUAURCF',
+    stripePriceMonthlyId: 'price_1TjfMNB4nhVx1nmUtSlsXNFW',
+    stripePriceAnnualId: 'price_1TjfMNB4nhVx1nmUQlFCiwyl',
+    visibleFeatures: [
+      'Top reviews from Google displayed on your listing',
+      '"Featured" badge + top-of-browse placement',
+      'Your own website, built for your business',
+      'Mobile-friendly, fast, click-to-call',
+      'See a free preview first — or buy now and we build it',
+    ],
+    expandedFeatures: [],
+    cta: { label: 'See Your Free Preview', mode: 'preview' },
+    secondaryCta: { label: 'Or buy now — $49/mo', mode: 'buy' },
+    billingTier: 'website',
+    footnote: 'Nothing goes live until you approve it. Buy now: not approved within 30 days of payment = cancelled + full refund. No contract. Cancel anytime.',
+    anchored: false,
+  },
   website: {
     id: 'website',
-    name: 'Website',
-    subtitle: 'Free preview first — no card until you approve it',
+    name: 'Website + AI Receptionist',
+    subtitle: 'The upgrade — your website plus an AI receptionist',
     priceMonthlyUSD: 99,
-    priceAnnualUSD: 990,   // annual-v1: $990/yr = 10x monthly (Website is chosen at preview approval)
+    priceAnnualUSD: 990,   // annual-v1: $990/yr = 10x monthly
     stripeProductId: 'prod_VMZoJGkrEewful',
     stripePriceMonthlyId: 'price_1ULqfAB4nhVx1nmU1g2yvHjs',
     stripePriceAnnualId: 'price_1UMVBvB4nhVx1nmUr3yDlPtU',
     visibleFeatures: [
-      'Everything in Reviews Plus, plus:',
+      'Everything in Website, plus:',
       'Custom website built for your business, on your domain',
       'AI chat receptionist that answers visitors and emails you leads',
       'Mobile-friendly, fast, click-to-call',
@@ -112,7 +141,9 @@ export const TIERS: Record<TierId, Tier> = {
     ],
     expandedFeatures: [],
     cta: { label: 'See Your Free Preview', mode: 'preview' },
-    footnote: 'No contract. Cancel anytime.',
+    secondaryCta: { label: 'Or buy now — $99/mo', mode: 'buy' },
+    billingTier: 'website_receptionist',
+    footnote: 'Nothing goes live until you approve it. Buy now: not approved within 30 days of payment = cancelled + full refund. No contract. Cancel anytime.',
     anchored: false,
   },
 };
@@ -125,7 +156,8 @@ export const TRIAL = {
 } as const;
 
 /** Ordered tier list for rendering the card grid (left → right). */
-export const TIER_ORDER: TierId[] = ['verified', 'reviews_plus', 'website'];
+// fleet-pricing-ladder-audit-repair-v1 (TDL #1362): R4 host — Leads Plus is barred here (R4: no lead forms), so the $9 Reviews Plus card stays pending a ruling.
+export const TIER_ORDER: TierId[] = ['verified', 'reviews_plus', 'website_basic', 'website'];
 
 /** Single source of truth: map a raw owner tier → the pricing-canonical tier id used by
  * current-plan comparison (currentTier === tier.id; the free tier id is "verified").

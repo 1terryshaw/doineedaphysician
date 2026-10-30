@@ -6,10 +6,11 @@ export const dynamic = 'force-dynamic';
 
 type Body = {
   listingSlug?: string;
-  tier?: 'reviews_plus' | 'website' | 'growth';
+  tier?: 'reviews_plus' | 'website' | 'growth' | 'website_receptionist';
   cycle?: 'monthly' | 'annual';
-  mode?: 'trial' | 'direct';
+  mode?: 'trial' | 'direct' | 'preview' | 'buy';
 };
+const WEBSITE_TIERS = ['website', 'website_receptionist'];
 
 export async function POST(request: NextRequest) {
   let body: Body;
@@ -20,7 +21,7 @@ export async function POST(request: NextRequest) {
   if (!listingSlug || !tier || !cycle) {
     return NextResponse.json({ error: 'Missing listingSlug, tier, or cycle' }, { status: 400 });
   }
-  if (!['reviews_plus', 'website', 'growth'].includes(tier)) {
+  if (!['reviews_plus', 'website', 'growth', 'website_receptionist'].includes(tier)) {
     return NextResponse.json({ error: 'Invalid tier' }, { status: 400 });
   }
   if (!['monthly', 'annual'].includes(cycle)) {
@@ -32,6 +33,9 @@ export async function POST(request: NextRequest) {
     mode === 'trial' && (tier === 'reviews_plus' || tier === 'website')
       ? 'trial'
       : 'direct';
+  // website-tiers-dualpath-stage-v1 (COO R1): a Website card's "buy now" is Path B (empire-billing sells now, builds, the owner approves
+  // before publish); "preview first" (or anything else) stays Path A — the free preview request.
+  const path: 'preview' | 'direct' | undefined = WEBSITE_TIERS.includes(tier) ? (mode === 'buy' ? 'direct' : 'preview') : undefined;
 
   const access = await verifyOwnerAccess(listingSlug);
   if (!access) {
@@ -55,6 +59,7 @@ export async function POST(request: NextRequest) {
       owner_email: ownerEmail,
       tier, cycle,
       mode: checkoutMode,
+      ...(path ? { path } : {}),
     });
   } catch (e: any) {
     return NextResponse.json({ error: 'Billing handoff signing failed' }, { status: 500 });

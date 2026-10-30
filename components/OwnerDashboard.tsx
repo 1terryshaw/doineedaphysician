@@ -40,11 +40,10 @@ function tierPillStyle(tier: string): TierPillColors {
   }
 }
 
+// fleet-pricing-ladder-audit-repair-v1 (TDL #1362): the owner's OWN price. Website has two plans ($49 / $99) on one tier slug, so it is not derivable
+// from TIERS — show none rather than a wrong one. reviews_plus here is only ever the legacy $9 Reviews Plus plan.
 function formatPrice(tier: TierSlug | null): string {
-  const t = tier === "reviews_plus" || tier === "website"
-    ? TIERS[tier]
-    : null;
-  return t ? `$${t.priceMonthlyUSD} USD/mo` : "";
+  return tier === "reviews_plus" ? `$${TIERS.reviews_plus.priceMonthlyUSD} USD/mo` : "";
 }
 
 export default function OwnerDashboard({ listing, reviewSlot, healthSlot, nextStepSlot }: { listing: Listing; reviewSlot?: ReactNode; healthSlot?: ReactNode; nextStepSlot?: ReactNode }) {
@@ -220,10 +219,10 @@ export default function OwnerDashboard({ listing, reviewSlot, healthSlot, nextSt
       {tier === "reviews_plus" && (
         <div className="border-2 border-purple-300 bg-gradient-to-br from-purple-50 to-indigo-50 rounded-lg p-6">
           <p className="text-xs font-semibold text-purple-700 uppercase tracking-wide">Upgrade</p>
-          <h2 className="text-xl font-bold mt-1">Unlock Website tier — ${TIERS.website.priceMonthlyUSD} USD/mo</h2>
+          <h2 className="text-xl font-bold mt-1">Upgrade to a website — from ${TIERS.website_basic.priceMonthlyUSD} USD/mo</h2>
           <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
             <ul className="space-y-1.5 text-sm text-gray-700">
-              {TIERS.website.visibleFeatures.map((f, i) => (
+              {TIERS.website_basic.visibleFeatures.map((f, i) => (
                 <li key={i}>✓ {f}</li>
               ))}
             </ul>
