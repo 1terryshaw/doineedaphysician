@@ -1,7 +1,12 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { Metadata } from "next";
 import { verifyOwnerAccess } from "@/lib/auth";
 import OwnerDashboard from "@/components/OwnerDashboard";
+import { parseUpgradeIntent, intentFromCookie, intentQuery, UPGRADE_INTENT_COOKIE } from "@/lib/upgrade-intent";
+import UpgradeIntentLauncher from "@/components/UpgradeIntentLauncher";
+import HealthLeadsPlusPanel from "@/components/HealthLeadsPlusPanel";
+import { healthLpRule, verticalAllowsLeadForms, ineligibleText } from "@/lib/health-leads-plus";
 import ReviewShowcase from "@/components/ReviewShowcase";
 import HealthScore from "@/components/HealthScore";
 import { listPhotosForListing } from "@/lib/listing-photos";
@@ -26,11 +31,15 @@ export const metadata: Metadata = {
 
 export default async function OwnerDashboardPage({ params, searchParams }: Props) {
   const { slug } = await params;
-  const saved = (await searchParams).saved === "1"; // owner-journey-friction-fix-v1
+  const sp = await searchParams;
+  const saved = sp.saved === "1"; // owner-journey-friction-fix-v1
+  // TDL #1391 (K432 rule 4): the owner's Leads Plus choice survives the login / claim round trip (URL, then lp_intent cookie).
+  const spGet = (k: string) => { const v = sp[k]; return Array.isArray(v) ? v[0] : v; };
+  const intent = parseUpgradeIntent(spGet) ?? intentFromCookie((await cookies()).get(UPGRADE_INTENT_COOKIE)?.value);
   const result = await verifyOwnerAccess(slug);
 
   if (!result) {
-    redirect("/owner/login");
+    redirect(intent ? `/owner/login?${intentQuery(intent)}` : "/owner/login");
   }
 
   const { listing } = result;
@@ -85,8 +94,17 @@ export default async function OwnerDashboardPage({ params, searchParams }: Props
     },
   );
 
+  // TDL #1391: Leads Plus (health) — purchase state from leads_plus_enabled (empire-billing writes only that flag here),
+  // availability from the rules table (public.health_lp_listing_eligible).
+  const lpRule = verticalAllowsLeadForms() ? await healthLpRule(listing.slug) : { eligible: false, reason: "not_offered" };
+  const lpActive = (listing as Record<string, unknown>).leads_plus_enabled === true && lpRule.eligible === true;
+  const lpState: "active" | "available" | "unavailable" = lpActive ? "active" : lpRule.eligible ? "available" : "unavailable";
+  const launch = intent && lpState === "available" ? intent : null;
+
   return (
     <div className="max-w-4xl mx-auto px-4 py-12">
+      {launch && <UpgradeIntentLauncher listingSlug={listing.slug} mode={launch.mode} skip={false} />}
+      <HealthLeadsPlusPanel slug={listing.slug} state={lpState} reason={lpState === "unavailable" ? ineligibleText(lpRule.reason) : undefined} />
       <OwnerDashboard
         listing={listing}
         reviewSlot={reviewSlot}

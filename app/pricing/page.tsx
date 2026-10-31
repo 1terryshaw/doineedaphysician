@@ -1,6 +1,7 @@
 import { Metadata } from "next";
 import verticalConfig from "@/lib/vertical.config";
 import PricingTable from "@/components/PricingTable";
+import HealthLeadsPlusCard from "@/components/HealthLeadsPlusCard";
 
 export const metadata: Metadata = {
   title: "Pricing",
@@ -22,6 +23,7 @@ export default function PricingPage() {
         </p>
       </div>
       <PricingTable />
+      <HealthLeadsPlusCard />
     </div>
   );
 }

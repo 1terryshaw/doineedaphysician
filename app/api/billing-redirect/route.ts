@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyOwnerAccess } from '@/lib/auth';
 import { signBillingHandoff } from '@/lib/billing-handoff';
+import { verticalAllowsLeadForms, healthLpRule, ineligibleText } from '@/lib/health-leads-plus';
 
 export const dynamic = 'force-dynamic';
 
 type Body = {
   listingSlug?: string;
-  tier?: 'reviews_plus' | 'website' | 'growth' | 'website_receptionist';
+  tier?: 'reviews_plus' | 'website' | 'growth' | 'leads_plus' | 'website_receptionist';
   cycle?: 'monthly' | 'annual';
   mode?: 'trial' | 'direct' | 'preview' | 'buy';
 };
@@ -21,7 +22,7 @@ export async function POST(request: NextRequest) {
   if (!listingSlug || !tier || !cycle) {
     return NextResponse.json({ error: 'Missing listingSlug, tier, or cycle' }, { status: 400 });
   }
-  if (!['reviews_plus', 'website', 'growth', 'website_receptionist'].includes(tier)) {
+  if (!['reviews_plus', 'website', 'growth', 'leads_plus', 'website_receptionist'].includes(tier)) {
     return NextResponse.json({ error: 'Invalid tier' }, { status: 400 });
   }
   // TDL #1374 (ruling R1): standalone Reviews Plus is retired for new customers on this host. Grandfathered owners keep
@@ -32,10 +33,10 @@ export async function POST(request: NextRequest) {
   if (!['monthly', 'annual'].includes(cycle)) {
     return NextResponse.json({ error: 'Invalid cycle' }, { status: 400 });
   }
-  // 'trial' is offered on reviews_plus and website only. Growth is
+  // 'trial' (30 days, card at signup) is offered on leads_plus and website. Growth is
   // direct-purchase only; anything else (or absent) bills immediately.
   const checkoutMode: 'trial' | 'direct' =
-    mode === 'trial' && tier === 'website'
+    mode === 'trial' && (tier === 'leads_plus' || tier === 'website')
       ? 'trial'
       : 'direct';
   // website-tiers-dualpath-stage-v1 (COO R1): a Website card's "buy now" is Path B (empire-billing sells now, builds, the owner approves
@@ -48,6 +49,21 @@ export async function POST(request: NextRequest) {
   }
 
   const listing = access.listing;
+
+  // TDL #1391 — Leads Plus ($19 USD/mo, monthly only) on this HEALTH directory: sold only to a listing the rules table makes
+  // eligible (public.health_lp_listing_eligible: claim, source rights, jurisdiction, held states). empire-billing re-checks it.
+  if (tier === 'leads_plus') {
+    if (!verticalAllowsLeadForms()) {
+      return NextResponse.json({ error: 'Leads Plus is not available on this site.' }, { status: 403 });
+    }
+    if (cycle !== 'monthly') {
+      return NextResponse.json({ error: 'Leads Plus is monthly only' }, { status: 400 });
+    }
+    const rule = await healthLpRule(listingSlug);
+    if (!rule.eligible) {
+      return NextResponse.json({ error: ineligibleText(rule.reason) }, { status: 403 });
+    }
+  }
   const ownerEmail: string | undefined = listing.owner_email || listing.email;
   if (!ownerEmail || ownerEmail.trim() === '') {
     return NextResponse.json(

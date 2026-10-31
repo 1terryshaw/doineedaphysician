@@ -6,6 +6,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import EmergencyBanner from "@/components/EmergencyBanner";
 import AnalyticsTracker from "@/components/AnalyticsTracker";
+import UpgradeIntentCapture from "@/components/UpgradeIntentCapture"; // TDL #1391 (K432 rule 4)
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -41,6 +42,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="min-h-screen flex flex-col font-sans">
+        <UpgradeIntentCapture />
         <AnalyticsTracker />
         <script
           type="application/ld+json"

@@ -1,11 +1,11 @@
 import { Metadata } from "next";
-import { hasDeliverableEmail } from "@/lib/inquiry-guard";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getListing } from "@/lib/supabase";
 import { hasPublicStreet, isAddressPublic } from "@/lib/address-visibility";
 import verticalConfig from "@/lib/vertical.config";
-import InquiryForm from "@/components/InquiryForm";
+import HealthLeadForm from "@/components/HealthLeadForm";
+import { healthLpRule, leadFormOn, CRISIS_LINE, TEST_FIXTURE_SLUG_PREFIX } from "@/lib/health-leads-plus";
 import ListingClaimCTA from "@/components/ListingClaimCTA";
 import ClaimUnlockPreview from "@/components/ClaimUnlockPreview";
 import PublicGbpClaimSidecar from "@/components/PublicGbpClaimSidecar";
@@ -57,6 +57,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     description: listing.short_description || listing.description,
     alternates: { canonical: `/directory/${slug}` },
     openGraph: { images: [OG_DEFAULT_IMAGE] },
+    // TDL #1391: the reserved Leads Plus test fixture is never indexable.
+    ...(slug.startsWith(TEST_FIXTURE_SLUG_PREFIX) ? { robots: { index: false, follow: false } } : {}),
   };
 }
 
@@ -81,6 +83,10 @@ export default async function ListingPage({ params }: Props) {
     );
   }
   if (!listing) notFound(); // genuine: no such listing
+  // TDL #1391: health Leads Plus contact form. The rules-table check runs only for a listing that bought Leads Plus.
+  const lpRow = listing as typeof listing & { leads_plus_enabled?: boolean | null; owner_email?: string | null };
+  const lpRule = lpRow.leads_plus_enabled === true ? await healthLpRule(listing.slug) : { eligible: false };
+  const lpFormOn = leadFormOn(lpRow, lpRule);
 
   // ADDRESS SHOW/HIDE (Phase 2 fleet fan, 2026-09-04). Street fields read through ONE
   // narrowly-typed view: the repo's own `Listing` interface may or may not declare them,
@@ -535,9 +541,10 @@ export default async function ListingPage({ params }: Props) {
           {/* Sidebar */}
           <div className="md:col-span-1 space-y-6">
             <div className="border rounded-lg p-6 sticky top-4">
-              {hasDeliverableEmail(listing) ||
-              (verticalConfig as { inquiryNoEmailPolicy?: "capture" | "hide" }).inquiryNoEmailPolicy === "capture" ? (
-                <InquiryForm listingSlug={listing.slug} honest={!hasDeliverableEmail(listing)} />
+              {/* TDL #1391: the Leads Plus contact request (rules-table gated) replaces the legacy free InquiryForm; else the claim CTA. */}
+              {lpFormOn ? (
+                <HealthLeadForm listingSlug={listing.slug} businessName={listing.name} freeText={lpRule.free_text === true}
+                  crisisLine={lpRule.crisis_line ? CRISIS_LINE[listing.country === "CA" ? "CA" : "US"] : null} />
               ) : (
                 <ListingClaimCTA listingSlug={listing.slug} listingClaimed={listing.claimed} />
               )}

@@ -61,7 +61,6 @@ export const TIERS: Record<TierId, Tier> = {
       'Contact info, hours, services displayed',
       'Up to 3 photos',
       'Star rating + Google review count',
-      'Inquiry form sent to your email',
       'Custom description and service area',
     ],
     expandedFeatures: [],
