@@ -156,8 +156,9 @@ export const TRIAL = {
 } as const;
 
 /** Ordered tier list for rendering the card grid (left → right). */
-// fleet-pricing-ladder-audit-repair-v1 (TDL #1362): R4 host — Leads Plus is barred here (R4: no lead forms), so the $9 Reviews Plus card stays pending a ruling.
-export const TIER_ORDER: TierId[] = ['verified', 'reviews_plus', 'website_basic', 'website'];
+// fleet-pricing-ladder-audit-repair-v2 (TDL #1374, ruling R1): standalone Reviews Plus is retired for new customers. R4 host — Leads
+// Plus is barred here, so new owners see Free + Website only. TIERS.reviews_plus stays so grandfathered owners still resolve.
+export const TIER_ORDER: TierId[] = ['verified', 'website_basic', 'website'];
 
 /** Single source of truth: map a raw owner tier → the pricing-canonical tier id used by
  * current-plan comparison (currentTier === tier.id; the free tier id is "verified").

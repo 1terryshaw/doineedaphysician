@@ -24,13 +24,18 @@ export async function POST(request: NextRequest) {
   if (!['reviews_plus', 'website', 'growth', 'website_receptionist'].includes(tier)) {
     return NextResponse.json({ error: 'Invalid tier' }, { status: 400 });
   }
+  // TDL #1374 (ruling R1): standalone Reviews Plus is retired for new customers on this host. Grandfathered owners keep
+  // their existing subscription and manage it through the billing portal, never through a new checkout.
+  if (tier === 'reviews_plus') {
+    return NextResponse.json({ error: 'Reviews Plus is no longer sold' }, { status: 410 });
+  }
   if (!['monthly', 'annual'].includes(cycle)) {
     return NextResponse.json({ error: 'Invalid cycle' }, { status: 400 });
   }
   // 'trial' is offered on reviews_plus and website only. Growth is
   // direct-purchase only; anything else (or absent) bills immediately.
   const checkoutMode: 'trial' | 'direct' =
-    mode === 'trial' && (tier === 'reviews_plus' || tier === 'website')
+    mode === 'trial' && tier === 'website'
       ? 'trial'
       : 'direct';
   // website-tiers-dualpath-stage-v1 (COO R1): a Website card's "buy now" is Path B (empire-billing sells now, builds, the owner approves

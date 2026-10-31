@@ -195,28 +195,9 @@ export default function OwnerDashboard({ listing, reviewSlot, healthSlot, nextSt
         </div>
       )}
 
-      {/* Free / seed / claimed — Upgrade to Reviews CTA */}
-      {(tier === "free" || tier === "seed") && (
-        <div className="border-2 border-blue-300 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-6">
-          <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Upgrade</p>
-          <h2 className="text-xl font-bold mt-1">Unlock Reviews Plus — ${TIERS.reviews_plus.priceMonthlyUSD} USD/mo</h2>
-          <ul className="mt-3 space-y-1.5 text-sm text-gray-700">
-            {TIERS.reviews_plus.visibleFeatures.map((f, i) => (
-              <li key={i}>✓ {f}</li>
-            ))}
-          </ul>
-          <Link
-            href={`/directory/${listing.slug}?upgrade=true`}
-            className="inline-block mt-4 px-5 py-2.5 rounded-lg text-white text-sm font-semibold"
-            style={{ backgroundColor: CTA_COLOR }}
-          >
-            Upgrade to Reviews Plus →
-          </Link>
-        </div>
-      )}
-
-      {/* Reviews Plus tier — Upgrade to Website teaser (free-preview panel; swm-website-offer-99-v2) */}
-      {tier === "reviews_plus" && (
+      {/* Free / seed / grandfathered Reviews Plus — Upgrade to Website teaser (free-preview panel; swm-website-offer-99-v2).
+          TDL #1374: the $9 Reviews Plus upsell is retired for new customers. */}
+      {(tier === "free" || tier === "seed" || tier === "reviews_plus") && (
         <div className="border-2 border-purple-300 bg-gradient-to-br from-purple-50 to-indigo-50 rounded-lg p-6">
           <p className="text-xs font-semibold text-purple-700 uppercase tracking-wide">Upgrade</p>
           <h2 className="text-xl font-bold mt-1">Upgrade to a website — from ${TIERS.website_basic.priceMonthlyUSD} USD/mo</h2>
