@@ -23,6 +23,11 @@ export type Capability =
 
 type CapabilityMap = Record<Capability, boolean>;
 
+// TDL #1393 (K438 Rule 1, health-ranking-neutrality-and-tail-v1): this is a HEALTH directory. No paid tier of any
+// kind (Reviews Plus / Leads Plus / Website / Website + Receptionist / Growth / grandfathered) may buy placement or a
+// badge that implies endorsement, so "featured" and "priority_search" are false on every tier. Paid features stay.
+// The sort keys themselves are neutral in the DB (public.health_neutral_rank_keys trigger: tier_priority = claimed?1:0,
+// featured frozen), so this map only governs the badge.
 export const TIER_CAPABILITIES: Record<TierSlug, CapabilityMap> = {
   seed: {
     lead_forwarding: false,
@@ -45,27 +50,27 @@ export const TIER_CAPABILITIES: Record<TierSlug, CapabilityMap> = {
   reviews_plus: {
     lead_forwarding: true,
     reviews_display: true,
-    featured: true,
+    featured: false,
     analytics: true,
-    priority_search: true,
+    priority_search: false,
     siteforge: false,
     custom_domain: false,
   },
   website: {
     lead_forwarding: true,
     reviews_display: true,
-    featured: true,
+    featured: false,
     analytics: true,
-    priority_search: true,
+    priority_search: false,
     siteforge: true,
     custom_domain: false,
   },
   growth: {
     lead_forwarding: true,
     reviews_display: true,
-    featured: true,
+    featured: false,
     analytics: true,
-    priority_search: true,
+    priority_search: false,
     siteforge: true,
     custom_domain: true,
   },

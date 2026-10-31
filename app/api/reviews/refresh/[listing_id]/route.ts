@@ -22,6 +22,7 @@ import { verifyOwnerAccess } from "@/lib/auth";
 import { resolveGoogleBusinessProfileUrl } from "@/lib/gbp-connector";
 import verticalConfig from "@/lib/vertical.config";
 import { can } from "@/lib/tier-capabilities";
+import { healthLpRule } from "@/lib/health-leads-plus";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -360,6 +361,27 @@ export async function POST(
     });
     return NextResponse.json(
       { error: "Reviews refresh is a Reviews Plus feature.", outcome: "refused_not_entitled" },
+      { status: 403 }
+    );
+  }
+
+  // HEALTH GATE (TDL #1393, K438 Rule 3) — review bodies on a health directory are governed by
+  // public.health_lp_rules.review_bodies (default off). When they cannot be shown there is nothing to refresh,
+  // and a paid-only rating refresh would make google_rating (a sort key) a paid advantage. Refuse before any
+  // Places call; the refusal is audited like every other.
+  const healthRule = await healthLpRule(listing.slug as string);
+  if (healthRule.review_bodies !== true) {
+    await audit({
+      listing_id: listing.id as string,
+      listing_slug: listing.slug as string,
+      place_id: (listing.google_place_id as string) ?? null,
+      outcome: "refused_not_entitled",
+      caller,
+      places_called: false,
+      detail: `health_lp_rules.review_bodies off (${healthRule.jurisdiction ?? healthRule.reason ?? "no rule"}) — TDL #1393`,
+    });
+    return NextResponse.json(
+      { error: "Review display is not offered on this health directory.", outcome: "refused_not_entitled" },
       { status: 403 }
     );
   }

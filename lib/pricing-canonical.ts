@@ -77,10 +77,9 @@ export const TIERS: Record<TierId, Tier> = {
     stripePriceMonthlyId: 'price_1TWCWhB4nhVx1nmU7e5wn3EI',
     stripePriceAnnualId: 'price_1TWCWhB4nhVx1nmU9rAwLlH0',
     visibleFeatures: [
-      'Top reviews from Google displayed on your listing',
-      '"Featured" badge (vs Claimed)',
+      'Google star rating + review count on your listing',
       'Up to 10 photos + hero cover image',
-      'Top-of-browse placement in directory search',
+      'Same search position as every listing — no paid ranking or badges',
       'Listing health score in your dashboard',
       '"Welcome to Reviews Plus" PDF playbook',
     ],
@@ -108,8 +107,7 @@ export const TIERS: Record<TierId, Tier> = {
     stripePriceMonthlyId: 'price_1TjfMNB4nhVx1nmUtSlsXNFW',
     stripePriceAnnualId: 'price_1TjfMNB4nhVx1nmUQlFCiwyl',
     visibleFeatures: [
-      'Top reviews from Google displayed on your listing',
-      '"Featured" badge + top-of-browse placement',
+      'Same search position as every listing — no paid ranking or badges',
       'Your own website, built for your business',
       'Mobile-friendly, fast, click-to-call',
       'See a free preview first — or buy now and we build it',

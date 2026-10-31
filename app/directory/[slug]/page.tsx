@@ -151,6 +151,10 @@ export default async function ListingPage({ params }: Props) {
   const tier = (listing.tier as string | null) ?? (listing.subscription_tier as string | null) ?? 'seed';
   const placeId =
     (listing as typeof listing & { google_place_id?: string }).google_place_id ?? null;
+  // TDL #1393 (K438 Rule 3): review bodies are testimonials. On a health directory they show only where
+  // public.health_lp_rules.review_bodies allows it (default off) — never because of the paid tier alone. Fails closed.
+  const reviewBodiesOn =
+    can(tier, "reviews_display") && !!placeId && (await healthLpRule(listing.slug)).review_bodies === true;
 
   const specialtyLabel = listing.listing_type
     ? verticalConfig.categoryLabels.find((c) => c.slug === listing.listing_type)?.label
@@ -398,7 +402,7 @@ export default async function ListingPage({ params }: Props) {
             </div>
 
             {/* Customer reviews — full carousel for tiers with reviews_display */}
-            {can(tier, "reviews_display") && placeId && (
+            {reviewBodiesOn && (
               <div className="mt-8 border-t pt-6">
                 <h3 className="font-semibold mb-3">Customer Reviews</h3>
                 <ReviewShowcase
