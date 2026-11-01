@@ -37,7 +37,7 @@ export default function HealthLeadsPlusPanel({
   }
 
   return (
-    <section data-testid="health-leads-plus-panel" data-state={state} className="mb-6 rounded-xl border p-5">
+    <section id="leads-plus" data-testid="health-leads-plus-panel" data-state={state} className="mb-6 rounded-xl border p-5">
       <h2 className="text-lg font-semibold text-gray-900">Leads Plus</h2>
       <p className="mt-1 text-sm text-gray-600">
         Adds a &ldquo;Request a call back&rdquo; form to your listing. Patients share their name, contact details and a good time to

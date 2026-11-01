@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { Metadata } from "next";
 import { verifyOwnerAccess } from "@/lib/auth";
 import OwnerDashboard from "@/components/OwnerDashboard";
+import { TIER_ORDER } from "@/lib/pricing-canonical";
 import { parseUpgradeIntent, intentFromCookie, intentQuery, UPGRADE_INTENT_COOKIE } from "@/lib/upgrade-intent";
 import UpgradeIntentLauncher from "@/components/UpgradeIntentLauncher";
 import HealthLeadsPlusPanel from "@/components/HealthLeadsPlusPanel";
@@ -107,6 +108,7 @@ export default async function OwnerDashboardPage({ params, searchParams }: Props
       <HealthLeadsPlusPanel slug={listing.slug} state={lpState} reason={lpState === "unavailable" ? ineligibleText(lpRule.reason) : undefined} />
       <OwnerDashboard
         listing={listing}
+        hostOffer={{ leadsPlus: lpState === "available", website: TIER_ORDER.some((id) => id.startsWith("website")), leadsPlusHref: "#leads-plus" }}
         reviewSlot={reviewSlot}
         healthSlot={healthSlot}
         nextStepSlot={

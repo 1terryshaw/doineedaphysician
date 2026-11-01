@@ -7,7 +7,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import verticalConfig from "@/lib/vertical.config";
 import { Listing } from "@/lib/supabase";
-import { can, getTierDisplayName, getNextTier, TierSlug } from "@/lib/tier-capabilities";
+import { can, getTierDisplayName, getNextTier, getNextTierLabel, type HostOffer, TierSlug } from "@/lib/tier-capabilities";
 import { TIERS } from "@/lib/pricing-canonical";
 import UpgradeReturnRefresher from "./UpgradeReturnRefresher";
 import { gbpConnectResult } from "@/lib/gbp-connect-result";
@@ -46,10 +46,10 @@ function formatPrice(tier: TierSlug | null): string {
   return tier === "reviews_plus" ? `$${TIERS.reviews_plus.priceMonthlyUSD} USD/mo` : "";
 }
 
-export default function OwnerDashboard({ listing, reviewSlot, healthSlot, nextStepSlot }: { listing: Listing; reviewSlot?: ReactNode; healthSlot?: ReactNode; nextStepSlot?: ReactNode }) {
+export default function OwnerDashboard({ listing, reviewSlot, healthSlot, nextStepSlot, hostOffer }: { listing: Listing; reviewSlot?: ReactNode; healthSlot?: ReactNode; nextStepSlot?: ReactNode; hostOffer?: HostOffer }) {
   const tier = (listing.tier || listing.subscription_tier || "free") as TierSlug;
   const tierLabel = getTierDisplayName(tier);
-  const nextTier = getNextTier(tier);
+  const nextTier = getNextTier(tier, hostOffer);
   const pill = tierPillStyle(tier);
 
   const [siteforgeUrl, setSiteforgeUrl] = useState<string>(listing.siteforge_url || "");
@@ -446,13 +446,13 @@ export default function OwnerDashboard({ listing, reviewSlot, healthSlot, nextSt
                 </button>
               </form>
             </div>
-          ) : tier === "free" || tier === "seed" ? null : (
+          ) : !nextTier && getTierDisplayName(tier) === "Free" ? null : (
             <Link
-              href={`/directory/${listing.slug}?upgrade=true`}
+              href={nextTier === "leads_plus" && hostOffer?.leadsPlusHref ? hostOffer.leadsPlusHref : `/directory/${listing.slug}?upgrade=true`}
               className="inline-block mt-4 text-sm font-medium hover:underline"
               style={{ color: verticalConfig.primaryColor }}
             >
-              {nextTier ? `Upgrade to ${getTierDisplayName(nextTier)} →` : "View pricing →"}
+              {nextTier ? `Upgrade to ${getNextTierLabel(nextTier)} →` : "View pricing →"}
             </Link>
           )}
         </div>
