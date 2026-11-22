@@ -7,8 +7,9 @@ import verticalConfig from "@/lib/vertical.config";
 import HealthLeadForm from "@/components/HealthLeadForm";
 import { healthLpRule, leadFormOn, CRISIS_LINE, TEST_FIXTURE_SLUG_PREFIX } from "@/lib/health-leads-plus";
 import ListingClaimCTA from "@/components/ListingClaimCTA";
-import ClaimUnlockPreview from "@/components/ClaimUnlockPreview";
-import PublicGbpClaimSidecar from "@/components/PublicGbpClaimSidecar";
+import ListingOwnerClaimCard from "@/components/ListingOwnerClaimCard";
+import ListingImage from "@/components/ListingImage";
+import { listingPhotoUrl } from "@/lib/listing-photo-url";
 import { normalizeTierForPricing } from "@/lib/pricing-canonical";
 import UpgradeModal from "@/components/UpgradeModal";
 import { can } from "@/lib/tier-capabilities";
@@ -141,14 +142,29 @@ export default async function ListingPage({ params }: Props) {
     lst.social_facebook,
     lst.social_linkedin,
   ].filter((u): u is string => Boolean(u && u.trim()));
-  const heroColumnUrl =
-    (listing as { hero_image_url?: string | null }).hero_image_url ?? null;
-  // Dedicated hero set -> all photos go to the gallery; else photos[0] is the hero.
-  const heroImageUrl = heroColumnUrl ?? photos[0]?.public_url ?? null;
-  const galleryPhotos = heroColumnUrl ? photos : photos.slice(1);
+  // Keep the dedicated hero first, then uploaded photos; filter before any img reaches SSR.
+  const displayPhotos = [
+    { id: "hero", public_url: (listing as { hero_image_url?: string | null }).hero_image_url },
+    ...photos,
+  ].flatMap((photo) => {
+    const url = listingPhotoUrl(photo.public_url);
+    return url ? [{ id: photo.id, public_url: url }] : [];
+  }).filter((photo, index, all) => all.findIndex((other) => other.public_url === photo.public_url) === index);
+  const logoUrl = listingPhotoUrl(logo?.public_url);
 
 
   const tier = (listing.tier as string | null) ?? (listing.subscription_tier as string | null) ?? 'seed';
+  const tel = listing.phone?.replace(/[^\d+]/g, "");
+  // Match TierBadge's Reviews verified predicate, including ownership.
+  const reviewsVerified = listing.claimed && Number(listing.google_rating) > 0;
+  const ownerClaimCard = !listing.claimed ? (
+    <ListingOwnerClaimCard
+      listingSlug={listing.slug}
+      businessName={listing.name}
+      reviewsVerified={reviewsVerified}
+      address={[streetPublic ? lstAddr.address : null, listing.city, listing.province_state, streetPublic ? lstAddr.postal_code : null].filter(Boolean).join(", ")}
+    />
+  ) : null;
   const placeId =
     (listing as typeof listing & { google_place_id?: string }).google_place_id ?? null;
   // TDL #1393 (K438 Rule 3): review bodies are testimonials. On a health directory they show only where
@@ -277,7 +293,7 @@ export default async function ListingPage({ params }: Props) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }}
       />
-      <div className="max-w-5xl mx-auto px-4 py-12">
+      <div className="max-w-6xl mx-auto px-4 py-12">
         <Link
           href="/directory"
           className="text-sm text-gray-500 hover:text-gray-700 mb-6 inline-block"
@@ -286,46 +302,21 @@ export default async function ListingPage({ params }: Props) {
         </Link>
 
 
-        {heroImageUrl && (
-          <div className="mb-6 rounded-xl overflow-hidden bg-gray-100 max-h-[420px] sm:max-h-none [container-type:inline-size]">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={heroImageUrl} alt={listing.name} className="w-full h-auto object-cover sm:max-h-[max(420px,56.25cqw)]" />
-          </div>
-        )}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className={`grid grid-cols-1 gap-8 ${listing.claimed ? "md:grid-cols-3" : "lg:grid-cols-3"}`}>
           {/* Main content */}
-          <div className="md:col-span-2">
+          <div className={listing.claimed ? "md:col-span-2" : "lg:col-span-2"}>
             {can(tier, 'featured') && (
               <div className="mb-3 inline-flex items-center gap-1.5 bg-gradient-to-r from-amber-400 to-amber-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-sm" aria-label="Featured listing">
                 <span aria-hidden="true">★</span>
                 <span>FEATURED</span>
               </div>
             )}
-            <div className="flex items-start justify-between mb-2">
-              <div className="flex items-center gap-3">
-                {logo && (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img src={logo.public_url} alt="" className="w-14 h-14 rounded-lg object-cover border" />
+            <div className="flex flex-wrap items-start gap-3 mb-3">
+              <div className="flex min-w-0 items-center gap-3">
+                {logoUrl && (
+                  <ListingImage src={logoUrl} alt="" className="w-14 h-14 shrink-0 rounded-lg object-cover border" />
                 )}
-                <div>
-                  <h1 className="text-3xl font-bold text-gray-900">{listing.name}</h1>
-                  {lst.year_established && (
-                    <p className="text-xs text-gray-500 mt-1">Established {lst.year_established}</p>
-                  )}
-                  {/* PUBLIC BUSINESS FACTS (Phase 1 fan, 2026-09-04). One line per fact, each
-                      rendered ONLY when its value is present, so an unfilled field emits no label
-                      and no empty element. The same values feed foundingDate / numberOfEmployees /
-                      paymentAccepted in the JSON-LD above — the page and the structured data are
-                      read off one row and cannot disagree. */}
-                  {napFacts.employee_count != null && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      {napFacts.employee_count} {napFacts.employee_count === 1 ? "employee" : "employees"}
-                    </p>
-                  )}
-                  {napFacts.payment_methods && napFacts.payment_methods.trim() && (
-                    <p className="text-xs text-gray-500 mt-1">Payment methods: {napFacts.payment_methods.trim()}</p>
-                  )}
-                </div>
+                <h1 className="min-w-0 break-words text-3xl font-bold text-gray-900">{listing.name}</h1>
               </div>
               <div className="flex gap-2 flex-shrink-0 ml-4">
               <TierBadge
@@ -338,9 +329,18 @@ export default async function ListingPage({ params }: Props) {
               )}
               </div>
             </div>
-            <p className="text-xs text-gray-400 mb-4">
-              We don&apos;t vet or endorse listed businesses.
-            </p>
+            <div className="mb-4 flex flex-wrap items-center gap-3 text-sm text-gray-600">
+              {(listing.city || listing.province_state) && (
+                <p>{[listing.city, listing.province_state].filter(Boolean).join(", ")}</p>
+              )}
+              {Number(listing.google_rating) > 0 && Number(listing.google_review_count) > 0 && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-3 py-1 text-gray-800">
+                  <span aria-hidden="true" className="text-amber-600">★</span>
+                  <span>{Number(listing.google_rating).toFixed(1)} ({listing.google_review_count} reviews)</span>
+                </span>
+              )}
+            </div>
+            {ownerClaimCard && <div className="mb-6 lg:hidden">{ownerClaimCard}</div>}
 
             {/* Specialty badge */}
             {specialtyLabel && (
@@ -352,36 +352,31 @@ export default async function ListingPage({ params }: Props) {
             {listing.now_hiring && (
               <p className="text-sm text-green-700 mb-3">This business is currently hiring. Contact them directly to inquire about opportunities.</p>
             )}
-            {/* NAP block (Phase 2 fleet fan, 2026-09-04). The public name/address pair.
-                The street lines render only when the owner's gate is on AND a street is stored,
-                so on a person/uncertain-grain vertical (default FALSE) this degrades to exactly
-                the city/region line it replaced — that expression is preserved verbatim below.
-                UNIFORM CODE: no grain branch, here or anywhere else in the fan. */}
-            {(listing.city || streetPublic) && (
-              <address className="not-italic text-gray-500 mb-3">
-                <span className="block">{listing.name}</span>
-                {streetPublic && lstAddr.address && (
-                  <span className="block">{lstAddr.address}</span>
-                )}
-                {(listing.city) && (
-                  <span className="block">
-                    {listing.city}
-                    {listing.province_state ? `, ${listing.province_state}` : ""}
-                    {streetPublic && lstAddr.postal_code ? ` ${lstAddr.postal_code}` : ""}
-                  </span>
-                )}
+            {/* Street and postal code retain the existing address permission gate. */}
+            {streetPublic && lstAddr.address && (
+              <address className="not-italic text-gray-500 mb-4">
+                <span className="block">{lstAddr.address}</span>
+                {lstAddr.postal_code && <span className="block">{lstAddr.postal_code}</span>}
               </address>
             )}
-
-            {listing.google_rating && (
-              <div className="flex items-center gap-1 text-sm text-gray-600 mb-6">
-                <span className="text-yellow-500">&#9733;</span>
-                <span>{listing.google_rating}</span>
-                {listing.google_review_count && (
-                  <span>({listing.google_review_count} reviews)</span>
-                )}
-              </div>
+            {lst.year_established && (
+              <p className="text-xs text-gray-500 mt-1">Established {lst.year_established}</p>
             )}
+            {/* PUBLIC BUSINESS FACTS (Phase 1 fan, 2026-09-04). One line per fact, each
+                rendered ONLY when its value is present, so an unfilled field emits no label
+                and no empty element. The same values feed foundingDate / numberOfEmployees /
+                paymentAccepted in the JSON-LD above — the page and the structured data are
+                read off one row and cannot disagree. */}
+            {napFacts.employee_count != null && (
+              <p className="text-xs text-gray-500 mt-1">
+                {napFacts.employee_count} {napFacts.employee_count === 1 ? "employee" : "employees"}
+              </p>
+            )}
+            {napFacts.payment_methods && napFacts.payment_methods.trim() && (
+              <p className="text-xs text-gray-500 mt-1">Payment methods: {napFacts.payment_methods.trim()}</p>
+            )}
+
+            <ListingGallery photos={displayPhotos} businessName={listing.name} variant="detail" />
 
             <div className="prose max-w-none">
               {/* DESCRIPTION LINE BREAKS (Phase 1 fan, 2026-09-04). `white-space: pre-line` surfaces
@@ -450,40 +445,21 @@ export default async function ListingPage({ params }: Props) {
               </div>
             )}
 
-            {/* Photo gallery */}
-            {galleryPhotos.length > 0 && (
-              <div className="mt-8 border-t pt-6">
-                <h3 className="font-semibold mb-3">Photos</h3>
-                <ListingGallery
-                  photos={galleryPhotos.map((p) => ({ id: p.id, public_url: p.public_url }))}
-                />
-              </div>
-            )}
             {/* Contact info */}
             <div className="mt-8 border-t pt-6 space-y-2">
               <h3 className="font-semibold mb-3">Contact Information</h3>
-              {listing.phone && (
-                <p className="text-sm">
-                  <span className="text-gray-500">Phone:</span>{" "}
-                  <a href={`tel:${listing.phone}`} className="hover:underline">
-                    {listing.phone}
+              <div className="flex flex-wrap items-center gap-3">
+                {listing.phone && tel && (
+                  <a href={`tel:${tel}`} className="inline-flex min-h-11 items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-700 focus-visible:ring-offset-2" style={{ backgroundColor: verticalConfig.primaryColor }}>
+                    Call {listing.phone}
                   </a>
-                </p>
-              )}
-              {listing.website && (
-                <p className="text-sm">
-                  <span className="text-gray-500">Website:</span>{" "}
-                  <a
-                    href={listing.website}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="hover:underline"
-                    style={{ color: verticalConfig.primaryColor }}
-                  >
-                    {listing.website}
+                )}
+                {listing.website && (
+                  <a href={listing.website} target="_blank" rel="noopener noreferrer" className="min-w-0 break-all text-sm hover:underline" style={{ color: verticalConfig.primaryColor }}>
+                    <span className="text-gray-500">Website:</span>{" "}{listing.website}
                   </a>
-                </p>
-              )}
+                )}
+              </div>
             
               {lst.gbp_url && (
                 <div className="pt-3">
@@ -522,37 +498,27 @@ export default async function ListingPage({ params }: Props) {
             {/* Claim CTA — UNCLAIMED: server-rendered unlock-preview (visible JS-off,
                 no client auth hook). CLAIMED: keep ListingClaimCTA for the owner's
                 "Edit My Listing" affordance (anon sees nothing on claimed pages). */}
-            <>{listing.claimed ? (
-              <ListingClaimCTA
-                listingSlug={listing.slug}
-                listingClaimed={listing.claimed}
-              />
-            ) : (
-              <ClaimUnlockPreview
-                listingSlug={listing.slug}
-                hasReviews={Number(listing.google_review_count) > 0}
-              />
+            <>{listing.claimed && (
+              <ListingClaimCTA listingSlug={listing.slug} listingClaimed={listing.claimed} />
             )}
             {HAS_LIST_YOUR_BUSINESS && <p className="mt-4 text-sm text-gray-500">Run a different physician{listing.city ? ` in ${listing.city}` : ""}? <Link href="/list-your-business" className="underline" style={{ color: verticalConfig.primaryColor }}>Add your business &rarr;</Link></p>}</>
-            <PublicGbpClaimSidecar
-              listingSlug={listing.slug}
-              listingName={listing.name}
-              address={[streetPublic ? (lst as { address?: string | null }).address : null, listing.city, listing.province_state, streetPublic ? (lst as { postal_code?: string | null }).postal_code : null, listing.country].filter(Boolean).join(", ")}
-              listingClaimed={listing.claimed}
-            />
           </div>
 
           {/* Sidebar */}
           <div className="md:col-span-1 space-y-6">
-            <div className="border rounded-lg p-6 sticky top-4">
-              {/* TDL #1391: the Leads Plus contact request (rules-table gated) replaces the legacy free InquiryForm; else the claim CTA. */}
-              {lpFormOn ? (
-                <HealthLeadForm listingSlug={listing.slug} businessName={listing.name} freeText={lpRule.free_text === true}
-                  crisisLine={lpRule.crisis_line ? CRISIS_LINE[listing.country === "CA" ? "CA" : "US"] : null} />
-              ) : (
-                <ListingClaimCTA listingSlug={listing.slug} listingClaimed={listing.claimed} />
-              )}
-            </div>
+            {ownerClaimCard ? (
+              <div className="hidden lg:block">{ownerClaimCard}</div>
+            ) : (
+              <div className="border rounded-lg p-6 sticky top-4">
+                {/* TDL #1391: the Leads Plus contact request (rules-table gated) replaces the legacy free InquiryForm; else the claim CTA. */}
+                {lpFormOn ? (
+                  <HealthLeadForm listingSlug={listing.slug} businessName={listing.name} freeText={lpRule.free_text === true}
+                    crisisLine={lpRule.crisis_line ? CRISIS_LINE[listing.country === "CA" ? "CA" : "US"] : null} />
+                ) : (
+                  <ListingClaimCTA listingSlug={listing.slug} listingClaimed={listing.claimed} />
+                )}
+              </div>
+            )}
 
             {/* Cross-referral sidebar */}
             {verticalConfig.crossReferrals.length > 0 && (
@@ -607,6 +573,7 @@ export default async function ListingPage({ params }: Props) {
         currentTier={normalizeTierForPricing(listing.tier as string | null, listing.claimed)}
         currentCycle={null}
       />
+      <p className="max-w-6xl mx-auto px-4 pt-6 pb-8 text-xs text-gray-400">We don&apos;t vet or endorse listed businesses.</p>
     </>
   );
 }
