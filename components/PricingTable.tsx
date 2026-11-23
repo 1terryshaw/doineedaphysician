@@ -1,6 +1,7 @@
 // pricing-version: 2026-05-17-reviews-plus-canonical
 "use client";
 
+import { pricingLabel } from "@/lib/pricing-label";
 import { useState } from "react";
 import Link from "next/link";
 import verticalConfig from "@/lib/vertical.config";
@@ -10,7 +11,7 @@ import { useOwnerAuth } from "@/lib/useOwnerAuth";
 export default function PricingTable() {
   const [annual, setAnnual] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  const { authenticated, slug, tier: currentTier } = useOwnerAuth({ context: true });
+  const { authenticated, slug, tier: currentTier, country } = useOwnerAuth({ context: true });
 
   const primary = verticalConfig.primaryColor || "#374151";
 
@@ -89,7 +90,7 @@ export default function PricingTable() {
                   <span className="text-4xl font-bold">Free</span>
                 ) : (
                   <>
-                    <span className="text-4xl font-bold">${price}</span>
+                    <span className="text-4xl font-bold">{pricingLabel(`$${price}`, country)}</span>
                     <span className="text-gray-500">/{unit}</span>
                   </>
                 )}
@@ -145,7 +146,7 @@ export default function PricingTable() {
                     style={{ backgroundColor: anchored ? primary : "#374151" }}
                   >
                     {tier.cta.mode === "direct"
-                      ? `${tier.cta.label} — $${price}/${yearly ? "yr" : "mo"}`
+                      ? pricingLabel(`${tier.cta.label} — $${price}/${yearly ? "yr" : "mo"}`, country)
                       : tier.cta.label}
                   </Link>
                   {tier.secondaryCta && (
@@ -153,7 +154,7 @@ export default function PricingTable() {
                       href={upgradeHref}
                       className="w-full text-center text-xs font-medium text-gray-500 underline hover:text-gray-700"
                     >
-                      {yearly ? tier.secondaryCta.label.replace(/\$[0-9]+\/mo$/, () => `$${price}/yr`) : tier.secondaryCta.label}
+                      {pricingLabel(yearly ? tier.secondaryCta.label.replace(/\$[0-9]+\/mo$/, () => `$${price}/yr`) : tier.secondaryCta.label, country)}
                     </Link>
                   )}
                 </div>

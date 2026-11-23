@@ -104,7 +104,7 @@ export default async function OwnerDashboardPage({ params, searchParams }: Props
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-12">
-      {launch && <UpgradeIntentLauncher listingSlug={listing.slug} mode={launch.mode} skip={false} />}
+      {launch && <UpgradeIntentLauncher country={listing.country} listingSlug={listing.slug} mode={launch.mode} skip={false} />}
       <HealthLeadsPlusPanel slug={listing.slug} state={lpState} reason={lpState === "unavailable" ? ineligibleText(lpRule.reason) : undefined} />
       <OwnerDashboard
         listing={listing}

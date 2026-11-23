@@ -2,6 +2,7 @@
 // pricing-version: 2026-05-12-usd-v2
 "use client";
 
+import { pricingLabel } from "@/lib/pricing-label";
 import { useState, useEffect, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -42,8 +43,8 @@ function tierPillStyle(tier: string): TierPillColors {
 
 // fleet-pricing-ladder-audit-repair-v1 (TDL #1362): the owner's OWN price. Website has two plans ($49 / $99) on one tier slug, so it is not derivable
 // from TIERS — show none rather than a wrong one. reviews_plus here is only ever the legacy $9 Reviews Plus plan.
-function formatPrice(tier: TierSlug | null): string {
-  return tier === "reviews_plus" ? `$${TIERS.reviews_plus.priceMonthlyUSD} USD/mo` : "";
+function formatPrice(tier: TierSlug | null, country?: string | null): string {
+  return tier === "reviews_plus" ? pricingLabel(`$${TIERS.reviews_plus.priceMonthlyUSD} USD/mo`, country) : "";
 }
 
 export default function OwnerDashboard({ listing, reviewSlot, healthSlot, nextStepSlot, hostOffer }: { listing: Listing; reviewSlot?: ReactNode; healthSlot?: ReactNode; nextStepSlot?: ReactNode; hostOffer?: HostOffer }) {
@@ -172,7 +173,7 @@ export default function OwnerDashboard({ listing, reviewSlot, healthSlot, nextSt
               ✓ {tierLabel} tier
             </span>
             {tier !== "free" && tier !== "seed" && tier !== "payment_error_review" && (
-              <span className="text-xs text-gray-500">{formatPrice(tier)}</span>
+              <span className="text-xs text-gray-500">{formatPrice(tier, listing.country)}</span>
             )}
           </div>
         </div>
@@ -200,7 +201,7 @@ export default function OwnerDashboard({ listing, reviewSlot, healthSlot, nextSt
       {(tier === "free" || tier === "seed" || tier === "reviews_plus") && (
         <div className="border-2 border-purple-300 bg-gradient-to-br from-purple-50 to-indigo-50 rounded-lg p-6">
           <p className="text-xs font-semibold text-purple-700 uppercase tracking-wide">Upgrade</p>
-          <h2 className="text-xl font-bold mt-1">Upgrade to a website — from ${TIERS.website_basic.priceMonthlyUSD} USD/mo</h2>
+          <h2 className="text-xl font-bold mt-1">Upgrade to a website — from {pricingLabel(`$${TIERS.website_basic.priceMonthlyUSD} USD/mo`, listing.country)}</h2>
           <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
             <ul className="space-y-1.5 text-sm text-gray-700">
               {TIERS.website_basic.visibleFeatures.map((f, i) => (
@@ -417,7 +418,7 @@ export default function OwnerDashboard({ listing, reviewSlot, healthSlot, nextSt
         <div className="border rounded-lg p-6">
           <h3 className="font-semibold mb-4">Billing</h3>
           <p className="text-sm text-gray-600">
-            Current: <span className="font-medium">{tierLabel}{tier !== "free" && tier !== "seed" ? ` — ${formatPrice(tier)}` : ""}</span>
+            Current: <span className="font-medium">{tierLabel}{tier !== "free" && tier !== "seed" ? ` — ${formatPrice(tier, listing.country)}` : ""}</span>
           </p>
           {listing.stripe_subscription_id ? (
             <div className="mt-4 flex flex-col gap-2 sm:flex-row">
